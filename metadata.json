@@ -1,0 +1,6 @@
+{
+  "name": "Satisfy",
+  "description": "Satisfy - A modern video and photo sharing social media platform featuring video feed, shorts, photo sharing, upload, like, comment, and creator profiles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
