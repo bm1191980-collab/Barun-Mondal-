@@ -32,10 +32,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.*
-import com.example.ui.theme.SatisfyRed
+import com.example.ui.theme.*
 
 enum class AdminTab {
     ANALYTICS,
+    PRO_SYSTEM,
+    REFERRALS,
+    WITHDRAWALS,
+    OWNER_CHATS,
+    VERIFICATION,
     USERS,
     POSTS,
     REPORTS,
@@ -55,6 +60,13 @@ fun AdminDashboardScreen(
     appSettings: AppSystemSettingsEntity?,
     auditLogs: List<AdminAuditLogEntity>,
     categories: List<String>,
+    proSubscriptions: List<ProSubscriptionEntity> = emptyList(),
+    referrals: List<ReferralEntity> = emptyList(),
+    wallets: List<WalletEntity> = emptyList(),
+    withdrawals: List<WithdrawalRequestEntity> = emptyList(),
+    ownerChats: List<OwnerChatEntity> = emptyList(),
+    activeChatMessages: List<ChatMessageEntity> = emptyList(),
+    activeChatUserId: String? = null,
     onBack: () -> Unit,
     onLogout: () -> Unit,
     onBanUser: (String, String) -> Unit,
@@ -66,13 +78,28 @@ fun AdminDashboardScreen(
     onEditPost: (PostEntity, String, String, String, String, String, String) -> Unit,
     onToggleFeatured: (PostEntity) -> Unit,
     onToggleFlagged: (PostEntity) -> Unit,
+    onTogglePostPremium: (PostEntity) -> Unit = {},
+    onApproveVideo: (PostEntity, String) -> Unit = { _, _ -> },
+    onRejectVideo: (PostEntity, String) -> Unit = { _, _ -> },
     onResolveReport: (ReportEntity, String, Boolean, Boolean) -> Unit,
     onDismissReport: (Long) -> Unit,
     onSendPushBroadcast: (String, String, String, String, String) -> Unit,
-    onSaveAppSettings: (AppSystemSettingsEntity) -> Unit
+    onSaveAppSettings: (AppSystemSettingsEntity) -> Unit,
+    onSelectChatUser: (String) -> Unit = {},
+    onSendChatReply: (String, String) -> Unit = { _, _ -> },
+    onToggleBlockChatUser: (String, Boolean) -> Unit = { _, _ -> },
+    onApproveWithdrawal: (Long, String, String) -> Unit = { _, _, _ -> },
+    onRejectWithdrawal: (Long, String, String) -> Unit = { _, _, _ -> },
+    onToggleFreezeWallet: (String, Boolean, String) -> Unit = { _, _, _ -> },
+    onToggleSuspiciousReferral: (Long, Boolean, String) -> Unit = { _, _, _ -> },
+    onReverseReferralReward: (Long, String) -> Unit = { _, _ -> },
+    onCancelSubscription: (Long) -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf(AdminTab.ANALYTICS) }
     val pendingReportCount = remember(allReports) { allReports.count { it.status == "PENDING" } }
+    val pendingVideoCount = remember(allPosts) { allPosts.count { it.status == "PENDING" || (it.isUserCreated && !it.isVerified && it.status != "REJECTED" && it.status != "APPROVED") } }
+    val pendingWithdrawalCount = remember(withdrawals) { withdrawals.count { it.status == "PENDING" } }
+    val unreadChatCount = remember(ownerChats) { ownerChats.sumOf { it.unreadCountForAdmin } }
 
     Scaffold(
         topBar = {
@@ -177,6 +204,44 @@ fun AdminDashboardScreen(
                             onClick = { selectedTab = AdminTab.ANALYTICS }
                         )
                         TabItem(
+                            title = "PRO System",
+                            icon = Icons.Filled.WorkspacePremium,
+                            badgeCount = proSubscriptions.size,
+                            selected = selectedTab == AdminTab.PRO_SYSTEM,
+                            onClick = { selectedTab = AdminTab.PRO_SYSTEM }
+                        )
+                        TabItem(
+                            title = "Referrals",
+                            icon = Icons.Filled.CardGiftcard,
+                            badgeCount = referrals.size,
+                            selected = selectedTab == AdminTab.REFERRALS,
+                            onClick = { selectedTab = AdminTab.REFERRALS }
+                        )
+                        TabItem(
+                            title = "Withdrawals",
+                            icon = Icons.Filled.AccountBalance,
+                            badgeCount = pendingWithdrawalCount,
+                            isBadgeAlert = pendingWithdrawalCount > 0,
+                            selected = selectedTab == AdminTab.WITHDRAWALS,
+                            onClick = { selectedTab = AdminTab.WITHDRAWALS }
+                        )
+                        TabItem(
+                            title = "VIP Chats",
+                            icon = Icons.Filled.Forum,
+                            badgeCount = unreadChatCount,
+                            isBadgeAlert = unreadChatCount > 0,
+                            selected = selectedTab == AdminTab.OWNER_CHATS,
+                            onClick = { selectedTab = AdminTab.OWNER_CHATS }
+                        )
+                        TabItem(
+                            title = "Verification",
+                            icon = Icons.Filled.FactCheck,
+                            badgeCount = pendingVideoCount,
+                            isBadgeAlert = pendingVideoCount > 0,
+                            selected = selectedTab == AdminTab.VERIFICATION,
+                            onClick = { selectedTab = AdminTab.VERIFICATION }
+                        )
+                        TabItem(
                             title = "Users",
                             icon = Icons.Filled.People,
                             badgeCount = allUsers.size,
@@ -236,6 +301,35 @@ fun AdminDashboardScreen(
                     auditLogs = auditLogs,
                     onNavigateToTab = { selectedTab = it }
                 )
+                AdminTab.PRO_SYSTEM -> AdminProTabContent(
+                    subscriptions = proSubscriptions,
+                    onCancelSubscription = onCancelSubscription
+                )
+                AdminTab.REFERRALS -> AdminReferralsTabContent(
+                    referrals = referrals,
+                    onToggleSuspicious = onToggleSuspiciousReferral,
+                    onReverseReward = onReverseReferralReward
+                )
+                AdminTab.WITHDRAWALS -> AdminWithdrawalsTabContent(
+                    withdrawals = withdrawals,
+                    onApproveWithdrawal = onApproveWithdrawal,
+                    onRejectWithdrawal = onRejectWithdrawal,
+                    onToggleFreezeWallet = onToggleFreezeWallet
+                )
+                AdminTab.OWNER_CHATS -> AdminOwnerChatsTabContent(
+                    chats = ownerChats,
+                    activeChatUserId = activeChatUserId,
+                    messages = activeChatMessages,
+                    onSelectChat = onSelectChatUser,
+                    onSendReply = onSendChatReply,
+                    onToggleBlockUser = onToggleBlockChatUser
+                )
+                AdminTab.VERIFICATION -> AdminVerificationView(
+                    allPosts = allPosts,
+                    onApproveVideo = onApproveVideo,
+                    onRejectVideo = onRejectVideo,
+                    onDeletePost = onDeletePost
+                )
                 AdminTab.USERS -> AdminUsersView(
                     users = allUsers,
                     onBanUser = onBanUser,
@@ -250,7 +344,8 @@ fun AdminDashboardScreen(
                     onDeletePost = onDeletePost,
                     onEditPost = onEditPost,
                     onToggleFeatured = onToggleFeatured,
-                    onToggleFlagged = onToggleFlagged
+                    onToggleFlagged = onToggleFlagged,
+                    onTogglePremium = onTogglePostPremium
                 )
                 AdminTab.REPORTS -> AdminReportsView(
                     reports = allReports,
@@ -1251,7 +1346,8 @@ fun AdminPostsView(
     onDeletePost: (PostEntity) -> Unit,
     onEditPost: (PostEntity, String, String, String, String, String, String) -> Unit,
     onToggleFeatured: (PostEntity) -> Unit,
-    onToggleFlagged: (PostEntity) -> Unit
+    onToggleFlagged: (PostEntity) -> Unit,
+    onTogglePremium: (PostEntity) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf("All") }
@@ -1271,6 +1367,7 @@ fun AdminPostsView(
                 "Photos" -> p.type == PostType.PHOTO
                 "Featured" -> p.isFeatured
                 "Flagged" -> p.isFlagged
+                "PRO Only" -> p.isPremium
                 else -> true
             }
             matchesQuery && matchesType
@@ -1301,7 +1398,7 @@ fun AdminPostsView(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        val filters = listOf("All", "Videos", "Shorts", "Photos", "Featured", "Flagged")
+        val filters = listOf("All", "Videos", "Shorts", "Photos", "Featured", "Flagged", "PRO Only")
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
@@ -1336,7 +1433,8 @@ fun AdminPostsView(
                     onEditClick = { postToEdit = post },
                     onDeleteClick = { postToDelete = post },
                     onToggleFeatured = { onToggleFeatured(post) },
-                    onToggleFlagged = { onToggleFlagged(post) }
+                    onToggleFlagged = { onToggleFlagged(post) },
+                    onTogglePremium = { onTogglePremium(post) }
                 )
             }
             item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -1432,12 +1530,13 @@ private fun AdminPostCard(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onToggleFeatured: () -> Unit,
-    onToggleFlagged: () -> Unit
+    onToggleFlagged: () -> Unit,
+    onTogglePremium: () -> Unit = {}
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        border = if (post.isFeatured) BorderStroke(1.5.dp, Color(0xFFF59E0B)) else null
+        border = if (post.isFeatured) BorderStroke(1.5.dp, Color(0xFFF59E0B)) else if (post.isPremium) BorderStroke(1.5.dp, SatisfyGold) else null
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1474,6 +1573,22 @@ private fun AdminPostCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (post.isPremium) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SatisfyGold.copy(alpha = 0.25f)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = SatisfyGold, modifier = Modifier.size(10.dp))
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text("PRO ONLY", color = SatisfyGold, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
                         if (post.isFeatured) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
@@ -1530,6 +1645,15 @@ private fun AdminPostCard(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Toggle Premium / Free button
+                IconButton(onClick = onTogglePremium) {
+                    Icon(
+                        imageVector = if (post.isPremium) Icons.Filled.WorkspacePremium else Icons.Outlined.WorkspacePremium,
+                        contentDescription = "Toggle Pro Status",
+                        tint = if (post.isPremium) SatisfyGold else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 // Feature toggle button
                 IconButton(onClick = onToggleFeatured) {
                     Icon(
@@ -2344,5 +2468,675 @@ private fun formatViews(views: Long): String {
         views >= 1000000 -> String.format("%.1fM", views / 1000000.0)
         views >= 1000 -> String.format("%.1fK", views / 1000.0)
         else -> views.toString()
+    }
+}
+
+// ----------------------------------------------------
+// 8. VIDEO & CREATOR VERIFICATION VIEW
+// ----------------------------------------------------
+@Composable
+fun AdminVerificationView(
+    allPosts: List<PostEntity>,
+    onApproveVideo: (PostEntity, String) -> Unit,
+    onRejectVideo: (PostEntity, String) -> Unit,
+    onDeletePost: (PostEntity) -> Unit
+) {
+    var selectedStatusFilter by remember { mutableStateOf("Pending") }
+    var searchQuery by remember { mutableStateOf("") }
+
+    var videoToReject by remember { mutableStateOf<PostEntity?>(null) }
+    var videoToPreview by remember { mutableStateOf<PostEntity?>(null) }
+    var videoToApprove by remember { mutableStateOf<PostEntity?>(null) }
+
+    val pendingPosts = remember(allPosts) {
+        allPosts.filter {
+            it.status == "PENDING" || (it.isUserCreated && !it.isVerified && it.status != "REJECTED" && it.status != "APPROVED")
+        }
+    }
+    val approvedPosts = remember(allPosts) {
+        allPosts.filter { it.status == "APPROVED" || (it.isVerified && it.status != "REJECTED") }
+    }
+    val rejectedPosts = remember(allPosts) {
+        allPosts.filter { it.status == "REJECTED" }
+    }
+
+    val filteredList = remember(allPosts, selectedStatusFilter, searchQuery) {
+        val baseList = when (selectedStatusFilter) {
+            "Pending" -> pendingPosts
+            "Approved" -> approvedPosts
+            "Rejected" -> rejectedPosts
+            else -> allPosts
+        }
+        if (searchQuery.isBlank()) {
+            baseList
+        } else {
+            baseList.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.channelName.contains(searchQuery, ignoreCase = true) ||
+                it.category.contains(searchQuery, ignoreCase = true) ||
+                it.tags.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Queue Overview Stats Cards
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFF59E0B).copy(alpha = 0.15f),
+                border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.3f)),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { selectedStatusFilter = "Pending" }
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Pending", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B))
+                        Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${pendingPosts.size}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF10B981).copy(alpha = 0.15f),
+                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { selectedStatusFilter = "Approved" }
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Approved", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${approvedPosts.size}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f)),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { selectedStatusFilter = "Rejected" }
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Rejected", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+                        Icon(Icons.Filled.Cancel, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${rejectedPosts.size}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Search Bar
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search submissions by title, creator, category...") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Clear")
+                    }
+                }
+            },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Filter Chips
+        val statusTabs = listOf("Pending", "Approved", "Rejected", "All")
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            items(statusTabs) { tab ->
+                val isSelected = selectedStatusFilter == tab
+                val count = when (tab) {
+                    "Pending" -> pendingPosts.size
+                    "Approved" -> approvedPosts.size
+                    "Rejected" -> rejectedPosts.size
+                    else -> allPosts.size
+                }
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { selectedStatusFilter = tab },
+                    label = { Text("$tab ($count)", fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (filteredList.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Filled.FactCheck,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = when (selectedStatusFilter) {
+                            "Pending" -> "No pending videos for review 🎉"
+                            "Approved" -> "No approved videos found."
+                            "Rejected" -> "No rejected submissions."
+                            else -> "No videos matching filter."
+                        },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredList, key = { it.id }) { post ->
+                    VerificationPostCard(
+                        post = post,
+                        onPreviewClick = { videoToPreview = post },
+                        onApproveClick = { videoToApprove = post },
+                        onRejectClick = { videoToReject = post },
+                        onDeleteClick = { onDeletePost(post) }
+                    )
+                }
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+            }
+        }
+    }
+
+    // Video Preview Dialog
+    if (videoToPreview != null) {
+        val post = videoToPreview!!
+        AlertDialog(
+            onDismissRequest = { videoToPreview = null },
+            title = {
+                Text("Review Content: ${post.title}", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.Black)
+                    ) {
+                        AsyncImage(
+                            model = if (post.thumbnailUrl.isNotBlank()) post.thumbnailUrl else "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800",
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Black.copy(alpha = 0.7f),
+                            modifier = Modifier.align(Alignment.Center)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayArrow,
+                                contentDescription = "Play",
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .size(32.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("Creator: ${post.channelName}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Category: ${post.category} • Duration: ${post.duration}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Description: ${post.description.ifBlank { "No description provided." }}", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Tags: ${post.tags}", fontSize = 11.sp, color = Color(0xFF3B82F6))
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val p = videoToPreview!!
+                        videoToPreview = null
+                        onApproveVideo(p, "Verified by Super Admin after preview")
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Text("Approve & Publish")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { videoToPreview = null }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Approve Dialog
+    if (videoToApprove != null) {
+        val post = videoToApprove!!
+        var approveNotes by remember { mutableStateOf("Meets all community guidelines and video quality standards.") }
+
+        AlertDialog(
+            onDismissRequest = { videoToApprove = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF10B981))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Approve & Publish Video?")
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "This will immediately publish '${post.title}' to the Satisfy public feed for all users.",
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = approveNotes,
+                        onValueChange = { approveNotes = it },
+                        label = { Text("Audit / Verification Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onApproveVideo(post, approveNotes)
+                        videoToApprove = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Text("Approve Video")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { videoToApprove = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Rejection Dialog
+    if (videoToReject != null) {
+        val post = videoToReject!!
+        var rejectionReason by remember { mutableStateOf("") }
+        val commonReasons = listOf(
+            "Violates Community Guidelines (Inappropriate / NSFW)",
+            "Copyright / Duplicate Content Detected",
+            "Low Video / Audio Quality Standards",
+            "Misleading Title / Clickbait Tags",
+            "Spam or Commercial Solicitation"
+        )
+
+        AlertDialog(
+            onDismissRequest = { videoToReject = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Cancel, contentDescription = null, tint = Color(0xFFEF4444))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Reject Submission")
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Specify the rejection reason for '${post.title}'. The creator will be notified with this reason.",
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text("Common Reasons:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    commonReasons.forEach { reason ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (rejectionReason == reason) Color(0xFFEF4444).copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (rejectionReason == reason) BorderStroke(1.dp, Color(0xFFEF4444)) else null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp)
+                                .clickable { rejectionReason = reason }
+                        ) {
+                            Text(
+                                text = reason,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                color = if (rejectionReason == reason) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = rejectionReason,
+                        onValueChange = { rejectionReason = it },
+                        label = { Text("Custom Rejection Feedback") },
+                        placeholder = { Text("Describe specific guideline issue...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val finalReason = rejectionReason.ifBlank { "Did not meet Satisfy content quality standards." }
+                        onRejectVideo(post, finalReason)
+                        videoToReject = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Confirm Rejection")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { videoToReject = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun VerificationPostCard(
+    post: PostEntity,
+    onPreviewClick: () -> Unit,
+    onApproveClick: () -> Unit,
+    onRejectClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    val isPending = post.status == "PENDING" || (post.isUserCreated && !post.isVerified && post.status != "REJECTED" && post.status != "APPROVED")
+    val isApproved = post.status == "APPROVED" || (post.isVerified && post.status != "REJECTED")
+    val isRejected = post.status == "REJECTED"
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = when {
+            isPending -> BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+            isApproved -> BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+            isRejected -> BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f))
+            else -> null
+        }
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Thumbnail preview
+                Box(
+                    modifier = Modifier
+                        .size(width = 100.dp, height = 70.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onPreviewClick() }
+                ) {
+                    AsyncImage(
+                        model = if (post.thumbnailUrl.isNotBlank()) post.thumbnailUrl else "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400",
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(3.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(3.dp)
+                    ) {
+                        Text(
+                            text = post.duration,
+                            color = Color.White,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                        )
+                    }
+                    // Play icon overlay
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.5f),
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = "Play Preview",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .size(18.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    // Status Badge & Type
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        when {
+                            isPending -> {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFFF59E0B).copy(alpha = 0.15f)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(10.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("PENDING REVIEW", color = Color(0xFFF59E0B), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            isApproved -> {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFF10B981).copy(alpha = 0.15f)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(10.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("APPROVED & LIVE", color = Color(0xFF10B981), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            isRejected -> {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFFEF4444).copy(alpha = 0.15f)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Cancel, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(10.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("REJECTED", color = Color(0xFFEF4444), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = post.type.name,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = post.title,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "By ${post.channelName} • ${post.category}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Tags: ${post.tags}",
+                        fontSize = 9.sp,
+                        color = Color(0xFF3B82F6),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // If Rejected, show rejection reason box
+            if (isRejected && !post.rejectionReason.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFFEF4444).copy(alpha = 0.1f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Info, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Reason: ${post.rejectionReason}",
+                            fontSize = 10.sp,
+                            color = Color(0xFFEF4444)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Action row for Admin
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onPreviewClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Filled.Visibility, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Preview", fontSize = 11.sp)
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (!isApproved) {
+                        Button(
+                            onClick = onApproveClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Approve", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (!isRejected) {
+                        OutlinedButton(
+                            onClick = onRejectClick,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                        ) {
+                            Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Reject", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
     }
 }

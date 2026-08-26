@@ -17,7 +17,12 @@ data class UserAccountEntity(
     val reportsCount: Int = 0,
     val joinedDate: String = "Aug 2026",
     val lastActive: String = "Just now",
-    val fcmToken: String = ""
+    val fcmToken: String = "",
+    val referralCode: String = "",
+    val referredByCode: String? = null,
+    val isPro: Boolean = false,
+    val proExpiresAt: Long? = null,
+    val isWalletFrozen: Boolean = false
 )
 
 @Entity(tableName = "reports")

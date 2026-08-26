@@ -95,7 +95,7 @@ fun SettingsDialog(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "সেটিংস ও পেজ ম্যানেজমেন্ট",
+                                    text = "Settings & Page Management",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -124,7 +124,7 @@ fun SettingsDialog(
                 ) {
                     // SECTION 1: CREATOR PAGES & STUDIO (Highlighted user request)
                     item {
-                        SettingsSectionHeader(title = "ক্রিয়েটর পেজ ও ওয়াচ টাইম স্টুডিও")
+                        SettingsSectionHeader(title = "Creator Pages & Watch Time Studio")
 
                         Card(
                             modifier = Modifier
@@ -163,13 +163,13 @@ fun SettingsDialog(
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Column {
                                             Text(
-                                                text = "প্রোফাইল থেকে পেজ তৈরি করুন",
+                                                text = "Create Creator Page",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 14.sp,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "পেজ তৈরি করে এক্সক্লুসিভ Watch Time দেখুন",
+                                                text = "Create a page to view exclusive Watch Time analytics",
                                                 fontSize = 11.sp,
                                                 color = SatisfyRed,
                                                 fontWeight = FontWeight.Medium
@@ -189,7 +189,7 @@ fun SettingsDialog(
                                     ) {
                                         Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("নতুন পেজ", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("New Page", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -200,7 +200,7 @@ fun SettingsDialog(
                     if (pages.isNotEmpty()) {
                         item {
                             Text(
-                                text = "আমার তৈরি পেজসমূহ (${pages.size})",
+                                text = "My Creator Pages (${pages.size})",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(top = 4.dp)
@@ -294,12 +294,12 @@ fun SettingsDialog(
                     // SECTION 2: VIDEO PLAYBACK & WATCH PREFERENCES
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
-                        SettingsSectionHeader(title = "ভিডিও প্লেব্যাক সেটিংস")
+                        SettingsSectionHeader(title = "Video Playback Settings")
 
                         SettingsSwitchItem(
                             icon = Icons.Filled.PlayCircle,
                             title = "Auto-Play Next Video",
-                            subtitle = "পরবর্তী ভিডিও স্বয়ংক্রিয়ভাবে চালু হবে",
+                            subtitle = "Automatically plays the next video in feed",
                             checked = autoPlayNext,
                             onCheckedChange = { autoPlayNext = it }
                         )
@@ -307,15 +307,15 @@ fun SettingsDialog(
                         SettingsSwitchItem(
                             icon = Icons.Filled.Hd,
                             title = "High Quality Streaming",
-                            subtitle = "সর্বোচ্চ HD 1080p কোয়ালিটিতে ভিডিও লোড হবে",
+                            subtitle = "Loads videos in full HD 1080p quality",
                             checked = highQualityStream,
                             onCheckedChange = { highQualityStream = it }
                         )
 
                         SettingsSwitchItem(
                             icon = Icons.Filled.History,
-                            title = "ওয়াচ হিস্টোরি সংরক্ষণ",
-                            subtitle = "আপনার দেখা ভিডিওর রেকর্ড হিস্টোরিতে সংরক্ষিত থাকবে",
+                            title = "Save Watch History",
+                            subtitle = "Keep a history of videos and shorts you watch",
                             checked = recordHistoryEnabled,
                             onCheckedChange = { recordHistoryEnabled = it }
                         )
@@ -324,12 +324,12 @@ fun SettingsDialog(
                     // SECTION 3: THEME & DISPLAY
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
-                        SettingsSectionHeader(title = "অ্যাপ থিম ও ডিসপ্লে")
+                        SettingsSectionHeader(title = "App Theme & Display")
 
                         SettingsSwitchItem(
                             icon = Icons.Filled.DarkMode,
-                            title = "ডার্ক থিম (Dark Mode)",
-                            subtitle = "ডার্ক ও এনার্জি সেভিং মোড",
+                            title = "Dark Theme",
+                            subtitle = "Enable dark mode for battery and eye comfort",
                             checked = isDarkTheme,
                             onCheckedChange = { onToggleDarkTheme() }
                         )
@@ -338,7 +338,7 @@ fun SettingsDialog(
                     // SECTION 4: DATA & PRIVACY
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
-                        SettingsSectionHeader(title = "ডেটা ও গোপনীয়তা")
+                        SettingsSectionHeader(title = "Data & Privacy")
 
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -357,13 +357,13 @@ fun SettingsDialog(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "ওয়াচ হিস্টোরি মুছে ফেলুন",
+                                        text = "Clear Watch History",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.error
                                     )
                                     Text(
-                                        text = "সমস্ত দেখা ভিডিওর ইতিহাস ক্লিয়ার করুন",
+                                        text = "Delete all history of watched videos and shorts",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -375,7 +375,7 @@ fun SettingsDialog(
                     // SECTION 5: ADMIN CONSOLE
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
-                        SettingsSectionHeader(title = "অ্যাডমিন ও সিস্টেম")
+                        SettingsSectionHeader(title = "Admin & System")
 
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -397,12 +397,12 @@ fun SettingsDialog(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "অ্যাডমিন ড্যাশবোর্ড ও কনসোল",
+                                        text = "Admin Dashboard & Console",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
                                     )
                                     Text(
-                                        text = if (isAdmin) "অ্যাডমিন প্যানেল সক্রিয়" else "লগইন করে মডারেশন অ্যাক্সেস করুন",
+                                        text = if (isAdmin) "Admin panel active" else "Login to access moderation console",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -441,8 +441,8 @@ fun SettingsDialog(
         if (showClearHistoryConfirm) {
             AlertDialog(
                 onDismissRequest = { showClearHistoryConfirm = false },
-                title = { Text("হিস্টোরি মুছবেন?") },
-                text = { Text("আপনি কি আপনার সম্পূর্ণ ওয়াচ হিস্টোরি মুছে ফেলতে চান?") },
+                title = { Text("Clear Watch History?") },
+                text = { Text("Are you sure you want to permanently clear your entire watch history?") },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -451,12 +451,12 @@ fun SettingsDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("মুছুন")
+                        Text("Clear")
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showClearHistoryConfirm = false }) {
-                        Text("বাতিল")
+                        Text("Cancel")
                     }
                 }
             )

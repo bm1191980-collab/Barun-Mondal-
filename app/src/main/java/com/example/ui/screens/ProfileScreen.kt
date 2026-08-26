@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +50,13 @@ fun ProfileScreen(
     watchHistory: List<PostEntity>,
     creatorPages: List<CreatorPageEntity> = emptyList(),
     isAdmin: Boolean = false,
+    isPro: Boolean = false,
+    proExpiresAt: Long = 0L,
+    walletBalance: Double = 0.0,
+    referralCode: String = "",
+    onNavigateToPro: () -> Unit = {},
+    onNavigateToWallet: () -> Unit = {},
+    onNavigateToOwnerChat: () -> Unit = {},
     onUpdateAvatarUri: (Uri) -> Unit = {},
     onUpdateBannerUri: (Uri) -> Unit = {},
     onResetBanner: () -> Unit = {},
@@ -77,7 +85,7 @@ fun ProfileScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             onUpdateAvatarUri(uri)
-            snackbarMessage = "প্রোফাইল পিকচার গ্যালারি থেকে সেট হয়েছে! 📸"
+            snackbarMessage = "Profile picture updated from gallery! 📸"
         }
     }
 
@@ -87,7 +95,7 @@ fun ProfileScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             onUpdateBannerUri(uri)
-            snackbarMessage = "ব্যানার ছবি গ্যালারি থেকে সেট হয়েছে! 🎨"
+            snackbarMessage = "Cover banner updated from gallery! 🎨"
         }
     }
 
@@ -162,7 +170,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Settings Button (সেটিংস)
+                        // Settings Button
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = Color.Black.copy(alpha = 0.70f),
@@ -183,7 +191,7 @@ fun ProfileScreen(
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = "সেটিংস",
+                                    text = "Settings",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -216,7 +224,7 @@ fun ProfileScreen(
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    text = if (userProfile.bannerUrl.isNotBlank()) "ব্যানার পরিবর্তন" else "ব্যানার যোগ করুন",
+                                    text = if (userProfile.bannerUrl.isNotBlank()) "Change Banner" else "Add Banner",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -403,7 +411,7 @@ fun ProfileScreen(
                             ) {
                                 Icon(Icons.Filled.AccountCircle, contentDescription = null, modifier = Modifier.size(16.dp), tint = SatisfyRed)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("গ্যালারি থেকে ছবি", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Photo from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             }
 
                             Divider(modifier = Modifier.height(20.dp).width(1.dp), color = MaterialTheme.colorScheme.outlineVariant)
@@ -418,7 +426,7 @@ fun ProfileScreen(
                             ) {
                                 Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(16.dp), tint = SatisfyBlue)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("গ্যালারি থেকে ব্যানার", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Banner from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             }
                         }
                     }
@@ -451,6 +459,124 @@ fun ProfileScreen(
                             color = SatisfyGold,
                             modifier = Modifier.weight(1.1f)
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // PRO MEMBERSHIP & REFERRAL EARNINGS SHOWCASE CARD
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isPro) Color(0xFF1E1B4B).copy(alpha = 0.85f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        border = BorderStroke(1.5.dp, if (isPro) SatisfyGold else SatisfyGold.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                Brush.radialGradient(
+                                                    if (isPro) listOf(SatisfyGold, Color(0xFFB45309))
+                                                    else listOf(SatisfyGold.copy(alpha = 0.8f), SatisfyRed)
+                                                )
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.WorkspacePremium,
+                                            contentDescription = null,
+                                            tint = Color.Black,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = if (isPro) "PRO VIP MEMBER" else "PRO MEMBERSHIP",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.sp,
+                                                color = if (isPro) SatisfyGold else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (isPro) {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(Icons.Filled.Verified, contentDescription = null, tint = SatisfyGold, modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                        Text(
+                                            text = if (isPro) "₹5/Month Active • All Benefits Unlocked" else "₹5/Month • Earn ₹4 per Referral",
+                                            fontSize = 11.sp,
+                                            color = if (isPro) Color(0xFFE0E7FF) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = onNavigateToPro,
+                                    shape = RoundedCornerShape(20.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = SatisfyGold,
+                                        contentColor = Color.Black
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = if (isPro) "Manage" else "Join PRO",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Quick Navigation to Wallet and Owner Chat
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = onNavigateToWallet,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null, tint = SatisfyGold, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column {
+                                        Text("Wallet", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                        Text("₹${walletBalance.toInt()}", fontSize = 10.sp, color = SatisfyGold, fontWeight = FontWeight.ExtraBold)
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = onNavigateToOwnerChat,
+                                    modifier = Modifier.weight(1.1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Filled.Forum, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column {
+                                        Text("Owner Chat", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(if (isPro) "VIP Direct" else "Pro Only", fontSize = 10.sp, color = Color(0xFF10B981))
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -489,12 +615,12 @@ fun ProfileScreen(
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text(
-                                            text = "আমার ক্রিয়েটর পেজসমূহ",
+                                            text = "My Creator Pages",
                                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "পেজের জন্য এক্সক্লুসিভ Watch Time ও স্টুডিও",
+                                            text = "Exclusive Watch Time & Studio for Pages",
                                             fontSize = 11.sp,
                                             color = SatisfyRed,
                                             fontWeight = FontWeight.Medium
@@ -511,7 +637,7 @@ fun ProfileScreen(
                                 ) {
                                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(2.dp))
-                                    Text("+ নতুন পেজ", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("+ New Page", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
@@ -538,12 +664,12 @@ fun ProfileScreen(
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "একটি নতুন পেজ তৈরি করুন",
+                                                text = "Create a New Page",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp
                                             )
                                             Text(
-                                                text = "পেজ তৈরি করে প্রতিটি ভিডিওর Watch Time দেখুন",
+                                                text = "Create a creator page to view Watch Time analytics",
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -923,7 +1049,7 @@ fun ProfileScreen(
             onSave = { name, handle, bio, link ->
                 onUpdateProfileInfo(name, handle, bio, link)
                 showEditProfileDialog = false
-                snackbarMessage = "প্রোফাইল তথ্য সফলভাবে আপডেট হয়েছে! ✨"
+                snackbarMessage = "Profile updated successfully! ✨"
             }
         )
     }
@@ -973,7 +1099,7 @@ fun EditProfileDialog(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "প্রোফাইল ছবি ও ব্যানার কাস্টমাইজ করুন",
+                            text = "Customize profile picture, banner & bio",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -987,7 +1113,7 @@ fun EditProfileDialog(
 
                 // --- 1. BANNER CUSTOMIZATION ---
                 Text(
-                    text = "Channel Banner (ব্যানার)",
+                    text = "Channel Cover Banner",
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -1027,7 +1153,7 @@ fun EditProfileDialog(
                         ) {
                             Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("গ্যালারি থেকে ব্যানার", fontSize = 12.sp, color = Color.White)
+                            Text("Banner from Gallery", fontSize = 12.sp, color = Color.White)
                         }
 
                         if (userProfile.bannerUrl.isNotBlank()) {
@@ -1047,7 +1173,7 @@ fun EditProfileDialog(
 
                 // --- 2. AVATAR CUSTOMIZATION ---
                 Text(
-                    text = "Profile Picture (প্রোফাইল ছবি)",
+                    text = "Profile Picture",
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -1085,7 +1211,7 @@ fun EditProfileDialog(
                         ) {
                             Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("গ্যালারি থেকে ছবি বাছুন", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Choose from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -1094,7 +1220,7 @@ fun EditProfileDialog(
                             onClick = onResetAvatar,
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text("ডিফল্ট ছবিতে ফিরুন (Reset)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Reset to Default Avatar", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -1105,7 +1231,7 @@ fun EditProfileDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Channel Name / নাম") },
+                    label = { Text("Channel Name") },
                     leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -1117,7 +1243,7 @@ fun EditProfileDialog(
                 OutlinedTextField(
                     value = handle,
                     onValueChange = { handle = it },
-                    label = { Text("Handle / ইউজারনেম") },
+                    label = { Text("Handle / Username") },
                     leadingIcon = { Icon(Icons.Filled.AlternateEmail, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -1129,7 +1255,7 @@ fun EditProfileDialog(
                 OutlinedTextField(
                     value = bio,
                     onValueChange = { bio = it },
-                    label = { Text("Channel Bio / বিবরণ") },
+                    label = { Text("Channel Bio / Description") },
                     leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     minLines = 3,
                     maxLines = 5,
@@ -1158,7 +1284,7 @@ fun EditProfileDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("বাতিল / Cancel")
+                        Text("Cancel")
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
@@ -1168,7 +1294,7 @@ fun EditProfileDialog(
                     ) {
                         Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("সংরক্ষণ করুন (Save)", fontWeight = FontWeight.Bold)
+                        Text("Save Changes", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1262,6 +1388,63 @@ fun ProfilePostItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
+            if (post.isUserCreated) {
+                val isPending = post.status == "PENDING" || (!post.isVerified && post.status != "REJECTED" && post.status != "APPROVED")
+                val isRejected = post.status == "REJECTED"
+                val isApproved = post.status == "APPROVED" || post.isVerified
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    when {
+                        isPending -> {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFF59E0B).copy(alpha = 0.15f)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Filled.HourglassTop, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(10.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Pending Verification", color = Color(0xFFF59E0B), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        isRejected -> {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFEF4444).copy(alpha = 0.15f)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Filled.Cancel, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(10.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Rejected", color = Color(0xFFEF4444), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        isApproved -> {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.15f)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(10.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Approved & Live", color = Color(0xFF10B981), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+            }
+
             Text(
                 text = post.title,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
@@ -1270,11 +1453,22 @@ fun ProfilePostItem(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "${post.views} • ${post.likeCount} likes • ${post.timeAgo}",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+            if (post.status == "REJECTED" && !post.rejectionReason.isNullOrBlank()) {
+                Text(
+                    text = "Reason: ${post.rejectionReason}",
+                    fontSize = 10.sp,
+                    color = Color(0xFFEF4444),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                Text(
+                    text = "${post.views} • ${post.likeCount} likes • ${post.timeAgo}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         if (onDelete != null) {

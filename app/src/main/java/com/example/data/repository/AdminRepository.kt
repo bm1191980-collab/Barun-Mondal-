@@ -415,6 +415,17 @@ class AdminRepository(
     }
 
     // --- POST MANAGEMENT ---
+    suspend fun approveVideo(postId: Long, adminEmail: String, notes: String = "") {
+        postDao.approvePost(postId)
+        logAuditAction("Video Approved", adminEmail.ifBlank { _currentAdmin.value?.email ?: "admin" }, "Approved video verification (Post ID: $postId). Notes: ${notes.ifBlank { "Meets Community Standards" }}")
+    }
+
+    suspend fun rejectVideo(postId: Long, adminEmail: String, reason: String) {
+        val safeReason = reason.ifBlank { "Violation of Content Quality Guidelines" }
+        postDao.rejectPost(postId, safeReason)
+        logAuditAction("Video Rejected", adminEmail.ifBlank { _currentAdmin.value?.email ?: "admin" }, "Rejected video verification (Post ID: $postId). Reason: $safeReason")
+    }
+
     suspend fun deletePost(post: PostEntity) {
         postDao.deletePost(post)
         logAuditAction("Delete Post", _currentAdmin.value?.email ?: "admin", "Deleted post: ${post.title} (ID: ${post.id})")

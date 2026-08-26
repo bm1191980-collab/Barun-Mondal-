@@ -36,6 +36,8 @@ val SatisfyRedLight = Color(0xFFFF6B8B)
 val SatisfyNeonRed = Color(0xFFFF1744)
 
 val SatisfyGold = Color(0xFFFFD54F)
+val SatisfyGoldDark = Color(0xFFFFA000)
+val SatisfyGoldLight = Color(0xFFFFE082)
 val SatisfyBlue = Color(0xFF82B1FF)
 val SatisfyGreen = Color(0xFF69F0AE)
 

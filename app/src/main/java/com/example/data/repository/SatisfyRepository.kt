@@ -18,6 +18,8 @@ class SatisfyRepository(
     private val creatorPageDao: CreatorPageDao
 ) {
     val allPosts: Flow<List<PostEntity>> = postDao.getAllPosts()
+    val pendingVerificationPosts: Flow<List<PostEntity>> = postDao.getPendingVerificationPosts()
+    val approvedPosts: Flow<List<PostEntity>> = postDao.getApprovedPosts()
     val videoPosts: Flow<List<PostEntity>> = postDao.getPostsByType(PostType.VIDEO)
     val shortPosts: Flow<List<PostEntity>> = postDao.getPostsByType(PostType.SHORT)
     val photoPosts: Flow<List<PostEntity>> = postDao.getPostsByType(PostType.PHOTO)

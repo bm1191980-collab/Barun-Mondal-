@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.SatisfyDatabase
 import com.example.data.model.*
 import com.example.data.repository.AdminRepository
+import com.example.data.repository.ProRepository
 import com.example.data.repository.SatisfyRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -22,7 +23,10 @@ enum class ScreenTab {
     PROFILE,
     SEARCH,
     ADMIN,
-    PAGE_DETAILS
+    PAGE_DETAILS,
+    PRO_MEMBERSHIP,
+    WALLET,
+    OWNER_CHAT
 }
 
 data class PlayerState(
@@ -38,9 +42,23 @@ data class PlayerState(
     val showControls: Boolean = true
 )
 
+data class UploadProcessingState(
+    val isUploading: Boolean = false,
+    val progress: Float = 0f,
+    val progressPercentage: Int = 0,
+    val stage: String = "",
+    val statusMessage: String = "",
+    val isProcessing: Boolean = false,
+    val isCompleted: Boolean = false,
+    val status: VideoStatus = VideoStatus.UPLOADING,
+    val uploadedPost: PostEntity? = null,
+    val errorMessage: String? = null
+)
+
 class SatisfyViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: SatisfyRepository
     val adminRepository: AdminRepository
+    val proRepository: ProRepository
 
     val currentTab = MutableStateFlow(ScreenTab.HOME)
     val selectedCategory = MutableStateFlow("All")
@@ -67,6 +85,25 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     val appSettings: StateFlow<AppSystemSettingsEntity?>
     val auditLogs: StateFlow<List<AdminAuditLogEntity>>
 
+    // PRO & WALLET & CHAT STATE FLOWS
+    val proSubscription: StateFlow<ProSubscriptionEntity?>
+    val isUserPro: StateFlow<Boolean>
+    val userWallet: StateFlow<WalletEntity?>
+    val walletTransactions: StateFlow<List<WalletTransactionEntity>>
+    val userWithdrawals: StateFlow<List<WithdrawalRequestEntity>>
+    val userReferrals: StateFlow<List<ReferralEntity>>
+    val ownerChatInfo: StateFlow<OwnerChatEntity?>
+    val ownerChatMessages: StateFlow<List<ChatMessageEntity>>
+
+    // ADMIN PRO STATE FLOWS
+    val allProSubscriptions: StateFlow<List<ProSubscriptionEntity>>
+    val allReferrals: StateFlow<List<ReferralEntity>>
+    val allWallets: StateFlow<List<WalletEntity>>
+    val allWithdrawals: StateFlow<List<WithdrawalRequestEntity>>
+    val allOwnerChats: StateFlow<List<OwnerChatEntity>>
+    val adminActiveChatUserId = MutableStateFlow<String?>(null)
+    val adminActiveChatMessages = MutableStateFlow<List<ChatMessageEntity>>(emptyList())
+
     // Upload draft state
     val uploadType = MutableStateFlow(PostType.VIDEO)
     val uploadTitle = MutableStateFlow("")
@@ -77,6 +114,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     val uploadMediaUrl = MutableStateFlow("")
     val isUploading = MutableStateFlow(false)
     val uploadSuccessMessage = MutableStateFlow<String?>(null)
+    val uploadProcessingState = MutableStateFlow(UploadProcessingState())
 
     // Comments for active video
     private val _activePostComments = MutableStateFlow<List<CommentEntity>>(emptyList())
@@ -87,6 +125,8 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
 
     // Database flows
     val allPosts: StateFlow<List<PostEntity>>
+    val pendingVerificationPosts: StateFlow<List<PostEntity>>
+    val approvedPosts: StateFlow<List<PostEntity>>
     val videoPosts: StateFlow<List<PostEntity>>
     val shortPosts: StateFlow<List<PostEntity>>
     val photoPosts: StateFlow<List<PostEntity>>
@@ -158,6 +198,16 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
+        pendingVerificationPosts = repository.pendingVerificationPosts.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        approvedPosts = repository.approvedPosts.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
         videoPosts = repository.videoPosts.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
@@ -215,10 +265,106 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         // Load saved user profile
         userProfile.value = loadUserProfileFromPrefs()
 
+        // Pro Repository initialization
+        proRepository = ProRepository(
+            context = application.applicationContext,
+            proSubscriptionDao = database.proSubscriptionDao(),
+            referralDao = database.referralDao(),
+            walletDao = database.walletDao(),
+            walletTransactionDao = database.walletTransactionDao(),
+            withdrawalRequestDao = database.withdrawalRequestDao(),
+            ownerChatDao = database.ownerChatDao(),
+            chatMessageDao = database.chatMessageDao(),
+            userAccountDao = database.userAccountDao(),
+            postDao = database.postDao(),
+            auditLogDao = database.auditLogDao()
+        )
+
+        proSubscription = proRepository.getUserSubscription(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            null
+        )
+        isUserPro = proRepository.isUserPro(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            false
+        )
+        userWallet = proRepository.getUserWallet(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            null
+        )
+        walletTransactions = proRepository.getUserTransactions(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        userWithdrawals = proRepository.getUserWithdrawals(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        userReferrals = proRepository.getUserReferrals(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        ownerChatInfo = proRepository.getOwnerChatForUser(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            null
+        )
+        ownerChatMessages = proRepository.getChatMessages(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+        allProSubscriptions = proRepository.allSubscriptions.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        allReferrals = proRepository.allReferrals.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        allWallets = proRepository.allWallets.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        allWithdrawals = proRepository.allWithdrawals.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        allOwnerChats = proRepository.allOwnerChats.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+        // Listen to admin active chat user changes
+        viewModelScope.launch {
+            adminActiveChatUserId.collectLatest { uid: String? ->
+                if (uid != null) {
+                    proRepository.getChatMessages(uid).collectLatest { msgs ->
+                        adminActiveChatMessages.value = msgs
+                    }
+                } else {
+                    adminActiveChatMessages.value = emptyList()
+                }
+            }
+        }
+
         // Seed initial data
         viewModelScope.launch {
             repository.checkAndSeedInitialData()
             adminRepository.seedAdminInitialData()
+            proRepository.seedInitialProData(userProfile.value.uid, userProfile.value.referralCode)
         }
     }
 
@@ -375,7 +521,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // Uploading New Video/Photo/Short
+    // Uploading New Video/Photo/Short with real-time staged progress
     fun submitUpload(
         type: PostType,
         title: String,
@@ -390,6 +536,62 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
 
         viewModelScope.launch {
             isUploading.value = true
+            uploadProcessingState.value = UploadProcessingState(
+                isUploading = true,
+                progress = 0.1f,
+                progressPercentage = 10,
+                stage = "Initiating upload...",
+                statusMessage = "Uploading... 10%",
+                status = VideoStatus.UPLOADING
+            )
+
+            kotlinx.coroutines.delay(400)
+            uploadProcessingState.value = uploadProcessingState.value.copy(
+                progress = 0.25f,
+                progressPercentage = 25,
+                stage = "Uploading... 25%",
+                statusMessage = "Uploading... 25%"
+            )
+
+            kotlinx.coroutines.delay(500)
+            uploadProcessingState.value = uploadProcessingState.value.copy(
+                progress = 0.50f,
+                progressPercentage = 50,
+                stage = "Uploading... 50%",
+                statusMessage = "Uploading... 50%"
+            )
+
+            kotlinx.coroutines.delay(500)
+            uploadProcessingState.value = uploadProcessingState.value.copy(
+                progress = 0.75f,
+                progressPercentage = 75,
+                stage = "Uploading... 75%",
+                statusMessage = "Uploading... 75%"
+            )
+
+            kotlinx.coroutines.delay(400)
+            uploadProcessingState.value = uploadProcessingState.value.copy(
+                progress = 1.0f,
+                progressPercentage = 100,
+                stage = "Upload Complete",
+                statusMessage = "Upload Complete"
+            )
+
+            kotlinx.coroutines.delay(400)
+            uploadProcessingState.value = uploadProcessingState.value.copy(
+                isProcessing = true,
+                stage = "Processing video streams & formats...",
+                statusMessage = "Processing 4K Stream & Audio Codecs...",
+                status = VideoStatus.PROCESSING
+            )
+
+            kotlinx.coroutines.delay(600)
+            uploadProcessingState.value = uploadProcessingState.value.copy(
+                stage = "Verifying copyright & quality compliance...",
+                statusMessage = "Verifying content quality & copyright...",
+                status = VideoStatus.PROCESSING
+            )
+
             val finalThumbnail = if (thumbnailUrl.isNotBlank()) thumbnailUrl else when (type) {
                 PostType.VIDEO -> "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&q=80"
                 PostType.SHORT -> "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=80"
@@ -409,23 +611,40 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                 channelName = currentProf.name.ifBlank { "Satisfy Creator" },
                 channelAvatar = currentProf.avatarUrl.ifBlank { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150" },
                 subscriberCount = currentProf.subscriberCount,
-                views = "1 view",
-                viewCount = 1L,
+                views = "0 views",
+                viewCount = 0L,
                 likeCount = 0L,
                 dislikeCount = 0L,
                 commentCount = 0L,
                 timeAgo = "Just now",
                 duration = if (type == PostType.SHORT) "0:45" else customDuration,
                 isVerified = false,
-                isUserCreated = true
+                isUserCreated = true,
+                status = VideoStatus.PENDING.name,
+                creatorUid = currentAdmin.value?.uid ?: "user_me"
             )
 
             val createdId = repository.createPost(newPost)
+            val insertedPost = newPost.copy(id = createdId)
+
+            kotlinx.coroutines.delay(400)
+            uploadProcessingState.value = UploadProcessingState(
+                isUploading = false,
+                isProcessing = false,
+                isCompleted = true,
+                progress = 1.0f,
+                progressPercentage = 100,
+                stage = "Submitted for Admin Verification 🚀",
+                statusMessage = "Submitted for Admin Verification",
+                status = VideoStatus.PENDING,
+                uploadedPost = insertedPost
+            )
             isUploading.value = false
+
             uploadSuccessMessage.value = when (type) {
-                PostType.VIDEO -> "Video uploaded successfully to Satisfy! 🎉"
-                PostType.SHORT -> "Satisfy Short published successfully! ⚡"
-                PostType.PHOTO -> "Photo shared to Community Feed! 📸"
+                PostType.VIDEO -> "Video submitted! Admin will verify before publishing. ⏳"
+                PostType.SHORT -> "Short submitted for verification! ⚡"
+                PostType.PHOTO -> "Post submitted for verification! 📸"
             }
 
             // Reset upload form
@@ -433,18 +652,40 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             uploadDescription.value = ""
             uploadThumbnailUrl.value = ""
             uploadMediaUrl.value = ""
-
-            // Switch to appropriate tab
-            currentTab.value = when (type) {
-                PostType.VIDEO -> ScreenTab.HOME
-                PostType.SHORT -> ScreenTab.SHORTS
-                PostType.PHOTO -> ScreenTab.PHOTOS
-            }
         }
+    }
+
+    fun resetUploadProcessingState() {
+        uploadProcessingState.value = UploadProcessingState()
+        isUploading.value = false
+    }
+
+    fun resetUploadState() {
+        resetUploadProcessingState()
+    }
+
+    fun cancelUpload() {
+        uploadProcessingState.value = UploadProcessingState()
+        isUploading.value = false
     }
 
     fun dismissSuccessMessage() {
         uploadSuccessMessage.value = null
+    }
+
+    // --- ADMIN VERIFICATION ACTIONS ---
+    fun adminApproveVideo(post: PostEntity, notes: String = "") {
+        viewModelScope.launch {
+            val adminEmail = currentAdmin.value?.email ?: AdminRepository.PRIMARY_SUPERADMIN_EMAIL
+            adminRepository.approveVideo(post.id, adminEmail, notes)
+        }
+    }
+
+    fun adminRejectVideo(post: PostEntity, reason: String) {
+        viewModelScope.launch {
+            val adminEmail = currentAdmin.value?.email ?: AdminRepository.PRIMARY_SUPERADMIN_EMAIL
+            adminRepository.rejectVideo(post.id, adminEmail, reason)
+        }
     }
 
     // --- ADMIN ACTIONS & USER MANAGEMENT ---
@@ -833,13 +1074,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun formatWatchTimeBangla(totalSeconds: Long): String {
-        val hours = totalSeconds / 3600.0
-        return if (hours >= 1.0) {
-            String.format(java.util.Locale.US, "%.1f ঘণ্টা", hours)
-        } else {
-            val mins = totalSeconds / 60
-            "$mins মিনিট"
-        }
+        return formatWatchTime(totalSeconds)
     }
 
     private fun parseDurationToSeconds(duration: String): Long {
@@ -854,6 +1089,126 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             }
         } catch (e: Exception) {
             180L
+        }
+    }
+
+    // ==========================================
+    // PRO MEMBERSHIP & REFERRAL REWARD METHODS
+    // ==========================================
+
+    fun purchaseProSubscription(
+        referrerCode: String?,
+        paymentMethod: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            proRepository.purchaseProMembership(
+                userId = userProfile.value.uid,
+                userName = userProfile.value.name,
+                userEmail = userProfile.value.email,
+                referralCodeApplied = referrerCode,
+                paymentMethod = paymentMethod
+            ) { result ->
+                onResult(result.isSuccess, if (result.isSuccess) "Pro Membership activated successfully! Welcome to Pro." else (result.errorMessage ?: "Payment failed. Please try again."))
+            }
+        }
+    }
+
+    fun submitWithdrawalRequest(
+        amount: Double,
+        payoutMethod: String,
+        payoutDetails: String,
+        accountHolderName: String,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            proRepository.requestWithdrawal(
+                userId = userProfile.value.uid,
+                userName = userProfile.value.name,
+                userEmail = userProfile.value.email,
+                amount = amount,
+                paymentMethod = payoutMethod,
+                paymentDetails = payoutDetails,
+                accountHolderName = accountHolderName,
+                onResult = onResult
+            )
+        }
+    }
+
+    fun sendUserChatMessage(message: String) {
+        viewModelScope.launch {
+            proRepository.sendUserChatMessage(
+                userId = userProfile.value.uid,
+                userName = userProfile.value.name,
+                userAvatar = userProfile.value.avatarUrl,
+                userEmail = userProfile.value.email,
+                message = message
+            )
+        }
+    }
+
+    fun sendAdminChatMessage(userId: String, message: String) {
+        viewModelScope.launch {
+            proRepository.sendAdminReplyMessage(
+                targetUserId = userId,
+                adminName = "Satisfy Owner / Support",
+                message = message
+            )
+        }
+    }
+
+    fun selectAdminChatUser(userId: String) {
+        adminActiveChatUserId.value = userId
+        viewModelScope.launch {
+            proRepository.markChatAsRead(userId, readerRole = "ADMIN")
+        }
+    }
+
+    fun toggleBlockChatUser(userId: String, isBlocked: Boolean) {
+        viewModelScope.launch {
+            proRepository.setChatBlocked(userId, isBlocked)
+        }
+    }
+
+    fun adminApproveWithdrawal(withdrawalId: Long, paymentRef: String, adminNotes: String) {
+        viewModelScope.launch {
+            proRepository.approveWithdrawal(withdrawalId, paymentRef, adminNotes)
+        }
+    }
+
+    fun adminRejectWithdrawal(withdrawalId: Long, reason: String, adminNotes: String) {
+        viewModelScope.launch {
+            proRepository.rejectWithdrawal(withdrawalId, reason, adminNotes)
+        }
+    }
+
+    fun adminToggleFreezeWallet(userId: String, isFrozen: Boolean, reason: String) {
+        viewModelScope.launch {
+            proRepository.setWalletFrozen(userId, isFrozen, reason)
+        }
+    }
+
+    fun adminToggleSuspiciousReferral(referralId: Long, isSuspicious: Boolean, reason: String) {
+        viewModelScope.launch {
+            proRepository.setReferralSuspicious(referralId, isSuspicious, reason)
+        }
+    }
+
+    fun adminReverseReferralReward(referralId: Long, reason: String) {
+        viewModelScope.launch {
+            proRepository.reverseReferralReward(referralId, reason)
+        }
+    }
+
+    fun adminCancelProSubscription(subscriptionId: Long) {
+        viewModelScope.launch {
+            proRepository.cancelSubscription(subscriptionId)
+        }
+    }
+
+    fun togglePostPremiumStatus(post: PostEntity) {
+        viewModelScope.launch {
+            proRepository.togglePostPremiumStatus(post.id, !post.isPremium)
         }
     }
 }

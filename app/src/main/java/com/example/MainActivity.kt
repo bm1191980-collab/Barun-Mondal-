@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
 
             val activeComments by viewModel.activePostComments.collectAsStateWithLifecycle()
             val isUploading by viewModel.isUploading.collectAsStateWithLifecycle()
+            val uploadProcessingState by viewModel.uploadProcessingState.collectAsStateWithLifecycle()
             val uploadMessage by viewModel.uploadSuccessMessage.collectAsStateWithLifecycle()
             val uploadType by viewModel.uploadType.collectAsStateWithLifecycle()
 
@@ -73,18 +74,37 @@ class MainActivity : ComponentActivity() {
             val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
             val auditLogs by viewModel.auditLogs.collectAsStateWithLifecycle()
 
+            // Pro Membership, Wallet & Chat state flows
+            val isUserPro by viewModel.isUserPro.collectAsStateWithLifecycle()
+            val proSubscription by viewModel.proSubscription.collectAsStateWithLifecycle()
+            val userWallet by viewModel.userWallet.collectAsStateWithLifecycle()
+            val walletTransactions by viewModel.walletTransactions.collectAsStateWithLifecycle()
+            val userWithdrawals by viewModel.userWithdrawals.collectAsStateWithLifecycle()
+            val userReferrals by viewModel.userReferrals.collectAsStateWithLifecycle()
+            val ownerChatInfo by viewModel.ownerChatInfo.collectAsStateWithLifecycle()
+            val ownerChatMessages by viewModel.ownerChatMessages.collectAsStateWithLifecycle()
+
+            // Admin Pro Management flows
+            val allProSubscriptions by viewModel.allProSubscriptions.collectAsStateWithLifecycle()
+            val allReferrals by viewModel.allReferrals.collectAsStateWithLifecycle()
+            val allWallets by viewModel.allWallets.collectAsStateWithLifecycle()
+            val allWithdrawals by viewModel.allWithdrawals.collectAsStateWithLifecycle()
+            val allOwnerChats by viewModel.allOwnerChats.collectAsStateWithLifecycle()
+            val adminActiveChatUserId by viewModel.adminActiveChatUserId.collectAsStateWithLifecycle()
+            val adminActiveChatMessages by viewModel.adminActiveChatMessages.collectAsStateWithLifecycle()
+
             var showCommentSheetForPost by remember { mutableStateOf<PostEntity?>(null) }
             var showAdminAuthDialog by remember { mutableStateOf(false) }
             var showCreatePageDialog by remember { mutableStateOf(false) }
             var showSettingsDialog by remember { mutableStateOf(false) }
 
             // Handle back navigation
-            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || showCommentSheetForPost != null) {
+            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || showCommentSheetForPost != null) {
                 if (showCommentSheetForPost != null) {
                     showCommentSheetForPost = null
                 } else if (playerState.isExpanded) {
                     viewModel.minimizePlayer()
-                } else if (currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.ADMIN) {
+                } else if (currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT) {
                     viewModel.currentTab.value = ScreenTab.PROFILE
                 } else if (currentTab == ScreenTab.SEARCH) {
                     viewModel.currentTab.value = ScreenTab.HOME
@@ -183,6 +203,8 @@ class MainActivity : ComponentActivity() {
                                     UploadScreen(
                                         categories = viewModel.categories,
                                         initialType = uploadType,
+                                        uploadProcessingState = uploadProcessingState,
+                                        onDismissProcessingModal = { viewModel.resetUploadState() },
                                         onPublish = { type, title, desc, cat, tags, thumb, media, duration ->
                                             viewModel.submitUpload(
                                                 type = type,
@@ -223,6 +245,13 @@ class MainActivity : ComponentActivity() {
                                         watchHistory = watchHistory,
                                         creatorPages = creatorPages,
                                         isAdmin = isAdminAuthenticated,
+                                        isPro = isUserPro,
+                                        proExpiresAt = proSubscription?.expiresAt ?: 0L,
+                                        walletBalance = userWallet?.referralBalance ?: 0.0,
+                                        referralCode = userProfile.referralCode,
+                                        onNavigateToPro = { viewModel.currentTab.value = ScreenTab.PRO_MEMBERSHIP },
+                                        onNavigateToWallet = { viewModel.currentTab.value = ScreenTab.WALLET },
+                                        onNavigateToOwnerChat = { viewModel.currentTab.value = ScreenTab.OWNER_CHAT },
                                         onUpdateAvatarUri = { uri -> viewModel.updateProfileAvatarUri(uri) },
                                         onUpdateBannerUri = { uri -> viewModel.updateProfileBannerUri(uri) },
                                         onResetBanner = { viewModel.resetProfileBanner() },
@@ -245,6 +274,45 @@ class MainActivity : ComponentActivity() {
                                         onUploadClick = { viewModel.currentTab.value = ScreenTab.CREATE },
                                         onOpenAdminConsole = { viewModel.currentTab.value = ScreenTab.ADMIN },
                                         onRequestAdminLogin = { showAdminAuthDialog = true }
+                                    )
+                                }
+                                ScreenTab.PRO_MEMBERSHIP -> {
+                                    ProMembershipScreen(
+                                        isPro = isUserPro,
+                                        subscription = proSubscription,
+                                        wallet = userWallet,
+                                        userReferralCode = userProfile.referralCode,
+                                        onBack = { viewModel.currentTab.value = ScreenTab.PROFILE },
+                                        onPurchasePro = { referrerCode, paymentMethod, onResult ->
+                                            viewModel.purchaseProSubscription(referrerCode, paymentMethod, onResult)
+                                        },
+                                        onOpenWallet = { viewModel.currentTab.value = ScreenTab.WALLET },
+                                        onOpenOwnerChat = { viewModel.currentTab.value = ScreenTab.OWNER_CHAT }
+                                    )
+                                }
+                                ScreenTab.WALLET -> {
+                                    WalletScreen(
+                                        wallet = userWallet,
+                                        transactions = walletTransactions,
+                                        withdrawals = userWithdrawals,
+                                        referrals = userReferrals,
+                                        userReferralCode = userProfile.referralCode,
+                                        isPro = isUserPro,
+                                        onBack = { viewModel.currentTab.value = ScreenTab.PROFILE },
+                                        onRequestWithdrawal = { amount, method, details, name, onResult ->
+                                            viewModel.submitWithdrawalRequest(amount, method, details, name, onResult)
+                                        },
+                                        onNavigateToPro = { viewModel.currentTab.value = ScreenTab.PRO_MEMBERSHIP }
+                                    )
+                                }
+                                ScreenTab.OWNER_CHAT -> {
+                                    OwnerChatScreen(
+                                        isPro = isUserPro,
+                                        chat = ownerChatInfo,
+                                        messages = ownerChatMessages,
+                                        onBack = { viewModel.currentTab.value = ScreenTab.PROFILE },
+                                        onSendMessage = { text -> viewModel.sendUserChatMessage(text) },
+                                        onNavigateToPro = { viewModel.currentTab.value = ScreenTab.PRO_MEMBERSHIP }
                                     )
                                 }
                                 ScreenTab.PAGE_DETAILS -> {
@@ -271,7 +339,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize(),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text("কোনো পেজ পাওয়া যায়নি")
+                                            Text("Page not found")
                                         }
                                     }
                                 }
@@ -300,6 +368,13 @@ class MainActivity : ComponentActivity() {
                                         appSettings = appSettings,
                                         auditLogs = auditLogs,
                                         categories = viewModel.categories,
+                                        proSubscriptions = allProSubscriptions,
+                                        referrals = allReferrals,
+                                        wallets = allWallets,
+                                        withdrawals = allWithdrawals,
+                                        ownerChats = allOwnerChats,
+                                        activeChatMessages = adminActiveChatMessages,
+                                        activeChatUserId = adminActiveChatUserId,
                                         onBack = { viewModel.currentTab.value = ScreenTab.PROFILE },
                                         onLogout = { viewModel.logoutAdmin() },
                                         onBanUser = { uid, reason -> viewModel.banUser(uid, reason) },
@@ -313,6 +388,9 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onToggleFeatured = { post -> viewModel.adminToggleFeatured(post) },
                                         onToggleFlagged = { post -> viewModel.adminToggleFlagged(post) },
+                                        onTogglePostPremium = { post -> viewModel.togglePostPremiumStatus(post) },
+                                        onApproveVideo = { post, notes -> viewModel.adminApproveVideo(post, notes) },
+                                        onRejectVideo = { post, reason -> viewModel.adminRejectVideo(post, reason) },
                                         onResolveReport = { report, action, delPost, banUser ->
                                             viewModel.resolveReport(report, action, delPost, banUser)
                                         },
@@ -320,7 +398,16 @@ class MainActivity : ComponentActivity() {
                                         onSendPushBroadcast = { title, body, topic, aud, url ->
                                             viewModel.sendPushBroadcast(title, body, topic, aud, url)
                                         },
-                                        onSaveAppSettings = { settings -> viewModel.saveAppSettings(settings) }
+                                        onSaveAppSettings = { settings -> viewModel.saveAppSettings(settings) },
+                                        onSelectChatUser = { uid -> viewModel.selectAdminChatUser(uid) },
+                                        onSendChatReply = { uid, msg -> viewModel.sendAdminChatMessage(uid, msg) },
+                                        onToggleBlockChatUser = { uid, blocked -> viewModel.toggleBlockChatUser(uid, blocked) },
+                                        onApproveWithdrawal = { id, ref, notes -> viewModel.adminApproveWithdrawal(id, ref, notes) },
+                                        onRejectWithdrawal = { id, reason, notes -> viewModel.adminRejectWithdrawal(id, reason, notes) },
+                                        onToggleFreezeWallet = { uid, frozen, reason -> viewModel.adminToggleFreezeWallet(uid, frozen, reason) },
+                                        onToggleSuspiciousReferral = { id, susp, reason -> viewModel.adminToggleSuspiciousReferral(id, susp, reason) },
+                                        onReverseReferralReward = { id, reason -> viewModel.adminReverseReferralReward(id, reason) },
+                                        onCancelSubscription = { id -> viewModel.adminCancelProSubscription(id) }
                                     )
                                 }
                             }

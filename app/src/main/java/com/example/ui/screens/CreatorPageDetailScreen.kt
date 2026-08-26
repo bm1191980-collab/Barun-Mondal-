@@ -68,7 +68,7 @@ fun CreatorPageDetailScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             onUpdateAvatarUri(page.id, uri)
-            snackbarMessage = "পেজের প্রোফাইল ছবি আপডেট হয়েছে!"
+            snackbarMessage = "Page avatar updated!"
         }
     }
 
@@ -78,7 +78,7 @@ fun CreatorPageDetailScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             onUpdateBannerUri(page.id, uri)
-            snackbarMessage = "পেজের কভার ব্যানার আপডেট হয়েছে!"
+            snackbarMessage = "Page cover banner updated!"
         }
     }
 
@@ -217,7 +217,7 @@ fun CreatorPageDetailScreen(
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("ব্যানার পরিবর্তন", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Change Banner", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
@@ -308,7 +308,7 @@ fun CreatorPageDetailScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("ভিডিও আপলোড", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("Upload Video", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -458,12 +458,12 @@ fun CreatorPageDetailScreen(
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Column {
                                             Text(
-                                                text = "মোট ওয়াচ টাইম (Total Watch Time)",
+                                                text = "Total Watch Time",
                                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "পেজের সকল ভিডিওর মোট দেখা সময়কাল",
+                                                text = "Total cumulative watch duration across all page videos",
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -509,7 +509,7 @@ fun CreatorPageDetailScreen(
                                             color = SatisfyRed
                                         )
                                         Text(
-                                            text = "≈ %,d মিনিট ওয়াচ টাইম".format(totalMinutes),
+                                            text = "≈ %,d Minutes Watch Time".format(totalMinutes),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -517,7 +517,7 @@ fun CreatorPageDetailScreen(
 
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
-                                            text = "গড় রিটেনশন",
+                                            text = "Avg Retention",
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -547,12 +547,12 @@ fun CreatorPageDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "ওয়াচ টাইম অ্যাক্টিভিটি গ্রাফ (গত ২৮ দিন)",
+                                        text = "Watch Time Activity Trend (Last 28 Days)",
                                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "ঘণ্টা/দিন",
+                                        text = "Hours/Day",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -653,7 +653,7 @@ fun CreatorPageDetailScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "মনিটাইজেশন ওয়াচ টাইম লক্ষ্যমাত্রা",
+                                            text = "Monetization Watch Time Target",
                                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
@@ -692,7 +692,7 @@ fun CreatorPageDetailScreen(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "লক্ষ্য: ৪,০০০ ঘণ্টা",
+                                        text = "Target: 4,000 Hours",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -702,7 +702,7 @@ fun CreatorPageDetailScreen(
 
                         // Per-Video Watch Time Header
                         Text(
-                            text = "প্রতিটি ভিডিওর ওয়াচ টাইম বিশ্লেষণ (Video Breakdown)",
+                            text = "Video Watch Time Breakdown",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(top = 8.dp)
@@ -827,13 +827,13 @@ fun CreatorPageDetailScreen(
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "এই পেজে এখনও কোনো ভিডিও নেই",
+                                text = "No videos uploaded to this page yet",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(onClick = onUploadToPage) {
-                                Text("প্রথম ভিডিও আপলোড করুন")
+                                Text("Upload First Video")
                             }
                         }
                     }
@@ -901,22 +901,22 @@ fun CreatorPageDetailScreen(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("পেজের বিবরণ ও তথ্য", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("Page Details & Information", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                 Divider()
                                 Row {
-                                    Text("ক্যাটাগরি: ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Category: ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     Text(page.category, fontSize = 13.sp)
                                 }
                                 Row {
-                                    Text("ইউজারনেম: ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Handle: ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     Text(page.handle, fontSize = 13.sp)
                                 }
                                 Row {
-                                    Text("লিংক: ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Link: ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     Text(page.websiteLink.ifBlank { "N/A" }, fontSize = 13.sp, color = SatisfyBlue)
                                 }
-                                Text("বিবরণ:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Text(page.description.ifBlank { "কোনো বিবরণ নেই।" }, fontSize = 13.sp)
+                                Text("Description:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(page.description.ifBlank { "No description provided." }, fontSize = 13.sp)
                             }
                         }
                     }
@@ -932,7 +932,7 @@ fun CreatorPageDetailScreen(
                 onSave = { name, cat, desc, link ->
                     onEditPageInfo(page.id, name, cat, desc, link)
                     showEditDialog = false
-                    snackbarMessage = "পেজের তথ্য সংরক্ষিত হয়েছে!"
+                    snackbarMessage = "Page details saved!"
                 }
             )
         }
@@ -941,8 +941,8 @@ fun CreatorPageDetailScreen(
         if (showDeleteConfirm) {
             AlertDialog(
                 onDismissRequest = { showDeleteConfirm = false },
-                title = { Text("পেজ মুছে ফেলবেন?") },
-                text = { Text("আপনি কি নিশ্চিত যে '${page.name}' পেজটি মুছে ফেলতে চান?") },
+                title = { Text("Delete Page?") },
+                text = { Text("Are you sure you want to delete '${page.name}' page?") },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -951,12 +951,12 @@ fun CreatorPageDetailScreen(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("মুছুন")
+                        Text("Delete")
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = false }) {
-                        Text("বাতিল")
+                        Text("Cancel")
                     }
                 }
             )
@@ -979,7 +979,7 @@ fun EditPageDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("পেজের তথ্য এডিট করুন", fontWeight = FontWeight.Bold) },
+        title = { Text("Edit Page Details", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier
@@ -990,13 +990,13 @@ fun EditPageDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("পেজের নাম") },
+                    label = { Text("Page Name") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 // Category Dropdown
-                Text("ক্যাটাগরি", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(categories) { cat ->
                         FilterChip(
@@ -1010,7 +1010,7 @@ fun EditPageDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("পেজের বিবরণ (Bio)") },
+                    label = { Text("Page Description (Bio)") },
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1018,7 +1018,7 @@ fun EditPageDialog(
                 OutlinedTextField(
                     value = link,
                     onValueChange = { link = it },
-                    label = { Text("ওয়েবসাইট / সোশ্যাল লিংক") },
+                    label = { Text("Website / Social Link") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1029,12 +1029,12 @@ fun EditPageDialog(
                 onClick = { onSave(name, category, description, link) },
                 enabled = name.isNotBlank()
             ) {
-                Text("সংরক্ষণ করুন")
+                Text("Save Changes")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("বাতিল")
+                Text("Cancel")
             }
         }
     )

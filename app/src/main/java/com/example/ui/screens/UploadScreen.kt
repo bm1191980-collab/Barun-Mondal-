@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.PostType
 import com.example.ui.theme.*
+import com.example.ui.viewmodel.UploadProcessingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +46,9 @@ fun UploadScreen(
     onPublish: (type: PostType, title: String, description: String, category: String, tags: String, thumbUrl: String, mediaUrl: String, duration: String) -> Unit,
     isUploading: Boolean,
     modifier: Modifier = Modifier,
-    initialType: PostType = PostType.VIDEO
+    initialType: PostType = PostType.VIDEO,
+    uploadProcessingState: UploadProcessingState = UploadProcessingState(),
+    onDismissProcessingModal: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var selectedType by remember { mutableStateOf(initialType) }
@@ -319,7 +323,7 @@ fun UploadScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "গ্যালারি থেকে সরাসরি আপলোড করুন",
+                                    text = "Upload directly from your gallery",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -525,7 +529,7 @@ fun UploadScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (selectedCustomThumbnailUri != null) "Custom Thumbnail: Attached ✓" else "Select Custom Thumbnail from Gallery (ঐচ্ছিক)",
+                                    text = if (selectedCustomThumbnailUri != null) "Custom Thumbnail: Attached ✓" else "Select Custom Thumbnail from Gallery (Optional)",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = if (selectedCustomThumbnailUri != null) SatisfyGreen else MaterialTheme.colorScheme.primary
@@ -831,7 +835,7 @@ fun UploadScreen(
                             selectedDuration
                         )
                     },
-                    enabled = title.isNotBlank() && !isUploading,
+                    enabled = title.isNotBlank() && !isUploading && !uploadProcessingState.isUploading && !uploadProcessingState.isProcessing,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
@@ -841,14 +845,17 @@ fun UploadScreen(
                         .fillMaxWidth()
                         .height(52.dp)
                 ) {
-                    if (isUploading) {
+                    if (isUploading || uploadProcessingState.isUploading || uploadProcessingState.isProcessing) {
                         CircularProgressIndicator(
                             color = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(22.dp),
                             strokeWidth = 2.5.dp
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("Publishing to Satisfy...", fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (uploadProcessingState.statusMessage.isNotBlank()) uploadProcessingState.statusMessage else "Publishing to Satisfy...",
+                            fontWeight = FontWeight.Bold
+                        )
                     } else {
                         Icon(
                             imageVector = Icons.Filled.RocketLaunch,
@@ -868,6 +875,253 @@ fun UploadScreen(
                     }
                 }
             }
+        }
+    }
+
+    // Real-Time Upload & Processing Progress Modal
+    if (uploadProcessingState.isUploading || uploadProcessingState.isProcessing || uploadProcessingState.isCompleted) {
+        UploadProgressDialog(
+            state = uploadProcessingState,
+            onDismiss = {
+                if (uploadProcessingState.isCompleted) {
+                    // Reset fields on success
+                    title = ""
+                    description = ""
+                    selectedGalleryUri = null
+                    selectedGalleryFileName = ""
+                    selectedCustomThumbnailUri = null
+                    onDismissProcessingModal()
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun UploadProgressDialog(
+    state: UploadProcessingState,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {
+            if (state.isCompleted) {
+                onDismiss()
+            }
+        },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                state.isCompleted -> Color(0xFF10B981).copy(alpha = 0.2f)
+                                state.isProcessing -> Color(0xFF3B82F6).copy(alpha = 0.2f)
+                                else -> SatisfyRed.copy(alpha = 0.2f)
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = when {
+                            state.isCompleted -> Icons.Filled.FactCheck
+                            state.isProcessing -> Icons.Filled.SettingsSuggest
+                            else -> Icons.Filled.CloudUpload
+                        },
+                        contentDescription = null,
+                        tint = when {
+                            state.isCompleted -> Color(0xFF10B981)
+                            state.isProcessing -> Color(0xFF3B82F6)
+                            else -> SatisfyRed
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = when {
+                        state.isCompleted -> "Submitted for Verification"
+                        state.isProcessing -> "Processing Content..."
+                        else -> "Uploading Media (${state.progressPercentage}%)"
+                    },
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+            ) {
+                // Progress Bar
+                LinearProgressIndicator(
+                    progress = { state.progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = when {
+                        state.isCompleted -> Color(0xFF10B981)
+                        state.isProcessing -> Color(0xFF3B82F6)
+                        else -> SatisfyRed
+                    },
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = state.statusMessage.ifBlank { state.stage },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "${state.progressPercentage}%",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Phase Stepper (Uploading -> Processing -> Pending Verification)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        StepItem(
+                            stepNumber = "1",
+                            title = "Upload Media File",
+                            subtitle = if (state.isUploading) "Uploading data packets..." else "Uploaded 100%",
+                            isDone = state.isProcessing || state.isCompleted || state.progress >= 1.0f,
+                            isActive = state.isUploading
+                        )
+                        StepItem(
+                            stepNumber = "2",
+                            title = "Video Processing & Encoding",
+                            subtitle = if (state.isProcessing) "Optimizing 4K stream..." else if (state.isCompleted) "Processing Complete" else "Waiting...",
+                            isDone = state.isCompleted,
+                            isActive = state.isProcessing
+                        )
+                        StepItem(
+                            stepNumber = "3",
+                            title = "Pending Admin Verification",
+                            subtitle = if (state.isCompleted) "Awaiting Admin Review & Approval" else "Pending step 2 completion",
+                            isDone = state.isCompleted,
+                            isActive = state.isCompleted
+                        )
+                    }
+                }
+
+                if (state.isCompleted) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF10B981).copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Info,
+                                contentDescription = null,
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Your video has been submitted for admin verification. It will be published once approved.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (state.isCompleted) {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Text("Done / View Studio", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun StepItem(
+    stepNumber: String,
+    title: String,
+    subtitle: String,
+    isDone: Boolean,
+    isActive: Boolean
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(
+                    when {
+                        isDone -> Color(0xFF10B981)
+                        isActive -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isDone) {
+                Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+            } else if (isActive) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(14.dp)
+                )
+            } else {
+                Text(stepNumber, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Column {
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = if (isActive || isDone) FontWeight.Bold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

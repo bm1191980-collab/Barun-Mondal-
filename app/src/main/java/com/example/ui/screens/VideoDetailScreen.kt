@@ -315,11 +315,12 @@ fun VideoDetailScreen(
                         Button(
                             onClick = { onToggleSubscribe(post.channelName, post.isSubscribed) },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (post.isSubscribed) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onSurface,
-                                contentColor = if (post.isSubscribed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.surface
+                                containerColor = if (post.isSubscribed) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF2196F3),
+                                contentColor = if (post.isSubscribed) MaterialTheme.colorScheme.onSurfaceVariant else Color.White
                             ),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            shape = RoundedCornerShape(24.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = if (post.isSubscribed) 0.dp else 2.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             if (post.isSubscribed) {
                                 Icon(
@@ -331,7 +332,14 @@ fun VideoDetailScreen(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("Subscribed", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             } else {
-                                Text("Subscribe", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Subscribe", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
                         }
                     }

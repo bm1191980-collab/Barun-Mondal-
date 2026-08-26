@@ -17,9 +17,16 @@ import com.example.data.model.*
         PushNotificationLogEntity::class,
         AppSystemSettingsEntity::class,
         AdminAuditLogEntity::class,
-        CreatorPageEntity::class
+        CreatorPageEntity::class,
+        ProSubscriptionEntity::class,
+        ReferralEntity::class,
+        WalletEntity::class,
+        WalletTransactionEntity::class,
+        WithdrawalRequestEntity::class,
+        OwnerChatEntity::class,
+        ChatMessageEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class SatisfyDatabase : RoomDatabase() {
@@ -32,6 +39,13 @@ abstract class SatisfyDatabase : RoomDatabase() {
     abstract fun appSettingsDao(): AppSettingsDao
     abstract fun auditLogDao(): AuditLogDao
     abstract fun creatorPageDao(): CreatorPageDao
+    abstract fun proSubscriptionDao(): ProSubscriptionDao
+    abstract fun referralDao(): ReferralDao
+    abstract fun walletDao(): WalletDao
+    abstract fun walletTransactionDao(): WalletTransactionDao
+    abstract fun withdrawalRequestDao(): WithdrawalRequestDao
+    abstract fun ownerChatDao(): OwnerChatDao
+    abstract fun chatMessageDao(): ChatMessageDao
 
     companion object {
         @Volatile

@@ -130,7 +130,7 @@ fun CreatePageDialog(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "নতুন পেজ তৈরি করুন",
+                                    text = "Create New Page",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -158,7 +158,7 @@ fun CreatePageDialog(
                 ) {
                     // Banner & Avatar Live Preview Picker
                     Text(
-                        text = "পেজের ছবি ও ব্যানার (Gallery Upload)",
+                        text = "Page Cover Banner & Avatar",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -201,7 +201,7 @@ fun CreatePageDialog(
                             ) {
                                 Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("ব্যানার বাছুন", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Choose Banner", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -244,8 +244,8 @@ fun CreatePageDialog(
                     OutlinedTextField(
                         value = pageName,
                         onValueChange = { pageName = it },
-                        label = { Text("পেজের নাম * (Page Name)") },
-                        placeholder = { Text("যেমন: Satisfy Gaming Hub") },
+                        label = { Text("Page Name *") },
+                        placeholder = { Text("e.g. Satisfy Gaming Hub") },
                         singleLine = true,
                         leadingIcon = {
                             Icon(Icons.Filled.Badge, contentDescription = null, tint = SatisfyRed)
@@ -257,7 +257,7 @@ fun CreatePageDialog(
                     OutlinedTextField(
                         value = pageHandle,
                         onValueChange = { pageHandle = it },
-                        label = { Text("ইউজারনেম / হ্যান্ডেল (@Handle)") },
+                        label = { Text("Username / Handle (@Handle)") },
                         placeholder = { Text("@page_handle") },
                         singleLine = true,
                         leadingIcon = {
@@ -269,7 +269,7 @@ fun CreatePageDialog(
                     // Category Selector
                     Column {
                         Text(
-                            text = "ক্যাটাগরি নির্বাচন করুন (Category)",
+                            text = "Select Category",
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -292,8 +292,8 @@ fun CreatePageDialog(
                     OutlinedTextField(
                         value = pageDescription,
                         onValueChange = { pageDescription = it },
-                        label = { Text("পেজের বিবরণ / Bio") },
-                        placeholder = { Text("এই পেজে আপনি কী ধরণের ভিডিও ও কন্টেন্ট প্রকাশ করবেন?") },
+                        label = { Text("Page Description / Bio") },
+                        placeholder = { Text("What kind of videos and content will you publish?") },
                         minLines = 3,
                         maxLines = 4,
                         modifier = Modifier.fillMaxWidth()
@@ -303,7 +303,7 @@ fun CreatePageDialog(
                     OutlinedTextField(
                         value = pageLink,
                         onValueChange = { pageLink = it },
-                        label = { Text("ওয়েবসাইট অথবা সোশ্যাল লিংক (ঐচ্ছিক)") },
+                        label = { Text("Website or Social Link (Optional)") },
                         placeholder = { Text("satisfy.app/@your_page") },
                         singleLine = true,
                         leadingIcon = {
@@ -326,7 +326,7 @@ fun CreatePageDialog(
                             Icon(Icons.Filled.Info, contentDescription = null, tint = SatisfyBlue, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "পেজ তৈরি সম্পন্ন হলে পেজের স্টুডিওতে সরাসরি 'ভিডিও ওয়াচ টাইম' এবং 'মনিটাইজেশন অ্যানালিটিক্স' দেখতে পারবেন।",
+                                text = "Once created, your Creator Page Studio gives you full access to real-time Watch Time analytics and monetization tracking.",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -348,7 +348,7 @@ fun CreatePageDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = onDismiss) {
-                            Text("বাতিল")
+                            Text("Cancel")
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -370,7 +370,7 @@ fun CreatePageDialog(
                         ) {
                             Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("পেজ তৈরি করুন", fontWeight = FontWeight.Bold)
+                            Text("Create Page", fontWeight = FontWeight.Bold)
                         }
                     }
                 }

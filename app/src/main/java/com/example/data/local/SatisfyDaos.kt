@@ -71,6 +71,27 @@ interface PostDao {
 
     @Query("SELECT * FROM posts WHERE isFlagged = 1 ORDER BY id DESC")
     fun getFlaggedPosts(): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM posts WHERE status = 'PENDING' ORDER BY id DESC")
+    fun getPendingVerificationPosts(): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM posts WHERE status = :status ORDER BY id DESC")
+    fun getPostsByStatus(status: String): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM posts WHERE status = 'APPROVED' ORDER BY id DESC")
+    fun getApprovedPosts(): Flow<List<PostEntity>>
+
+    @Query("UPDATE posts SET status = :status, isVerified = :isVerified, rejectionReason = :rejectionReason WHERE id = :postId")
+    suspend fun updatePostStatus(postId: Long, status: String, isVerified: Boolean, rejectionReason: String?)
+
+    @Query("UPDATE posts SET status = 'APPROVED', isVerified = 1, rejectionReason = NULL WHERE id = :postId")
+    suspend fun approvePost(postId: Long)
+
+    @Query("UPDATE posts SET status = 'REJECTED', isVerified = 0, rejectionReason = :reason WHERE id = :postId")
+    suspend fun rejectPost(postId: Long, reason: String)
+
+    @Query("UPDATE posts SET isPremium = :isPremium WHERE id = :postId")
+    suspend fun updatePostPremiumStatus(postId: Long, isPremium: Boolean)
 }
 
 @Dao
@@ -234,4 +255,179 @@ interface CreatorPageDao {
     @Query("SELECT COUNT(*) FROM creator_pages")
     suspend fun getCount(): Int
 }
+
+@Dao
+interface ProSubscriptionDao {
+    @Query("SELECT * FROM pro_subscriptions ORDER BY startedAt DESC")
+    fun getAllSubscriptions(): Flow<List<com.example.data.model.ProSubscriptionEntity>>
+
+    @Query("SELECT * FROM pro_subscriptions WHERE userId = :userId ORDER BY startedAt DESC")
+    fun getSubscriptionsForUser(userId: String): Flow<List<com.example.data.model.ProSubscriptionEntity>>
+
+    @Query("SELECT * FROM pro_subscriptions WHERE userId = :userId AND status = 'ACTIVE' AND expiresAt > :currentTime ORDER BY expiresAt DESC LIMIT 1")
+    suspend fun getActiveSubscription(userId: String, currentTime: Long = System.currentTimeMillis()): com.example.data.model.ProSubscriptionEntity?
+
+    @Query("SELECT * FROM pro_subscriptions WHERE userId = :userId AND status = 'ACTIVE' AND expiresAt > :currentTime ORDER BY expiresAt DESC LIMIT 1")
+    fun observeActiveSubscription(userId: String, currentTime: Long = System.currentTimeMillis()): Flow<com.example.data.model.ProSubscriptionEntity?>
+
+    @Query("SELECT * FROM pro_subscriptions WHERE orderId = :orderId OR paymentId = :paymentId LIMIT 1")
+    suspend fun getSubscriptionByPayment(orderId: String, paymentId: String): com.example.data.model.ProSubscriptionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubscription(subscription: com.example.data.model.ProSubscriptionEntity): Long
+
+    @Update
+    suspend fun updateSubscription(subscription: com.example.data.model.ProSubscriptionEntity)
+
+    @Query("UPDATE pro_subscriptions SET status = :status WHERE id = :id")
+    suspend fun updateSubscriptionStatus(id: Long, status: String)
+
+    @Query("SELECT COUNT(*) FROM pro_subscriptions")
+    suspend fun getTotalSubscriptionsCount(): Int
+
+    @Query("SELECT COUNT(DISTINCT userId) FROM pro_subscriptions WHERE status = 'ACTIVE' AND expiresAt > :currentTime")
+    suspend fun getActiveProUsersCount(currentTime: Long = System.currentTimeMillis()): Int
+
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM pro_subscriptions WHERE paymentStatus = 'SUCCESS'")
+    suspend fun getTotalProRevenue(): Double
+}
+
+@Dao
+interface ReferralDao {
+    @Query("SELECT * FROM referrals ORDER BY joinedAt DESC")
+    fun getAllReferrals(): Flow<List<com.example.data.model.ReferralEntity>>
+
+    @Query("SELECT * FROM referrals WHERE referrerUid = :referrerUid ORDER BY joinedAt DESC")
+    fun getReferralsByReferrer(referrerUid: String): Flow<List<com.example.data.model.ReferralEntity>>
+
+    @Query("SELECT * FROM referrals WHERE refereeUid = :refereeUid LIMIT 1")
+    suspend fun getReferralForReferee(refereeUid: String): com.example.data.model.ReferralEntity?
+
+    @Query("SELECT * FROM referrals WHERE referrerCode = :code ORDER BY joinedAt DESC")
+    fun getReferralsByCode(code: String): Flow<List<com.example.data.model.ReferralEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReferral(referral: com.example.data.model.ReferralEntity): Long
+
+    @Update
+    suspend fun updateReferral(referral: com.example.data.model.ReferralEntity)
+
+    @Query("UPDATE referrals SET rewardStatus = :status, hasPurchasedPro = :hasPurchased, proSubscriptionId = :subId WHERE id = :id")
+    suspend fun updateReferralReward(id: Long, status: String, hasPurchased: Boolean, subId: Long?)
+
+    @Query("UPDATE referrals SET isSuspicious = :isSuspicious, auditNote = :auditNote WHERE id = :id")
+    suspend fun markSuspicious(id: Long, isSuspicious: Boolean, auditNote: String)
+
+    @Query("SELECT COUNT(*) FROM referrals")
+    suspend fun getTotalReferralsCount(): Int
+
+    @Query("SELECT COUNT(*) FROM referrals WHERE hasPurchasedPro = 1")
+    suspend fun getSuccessfulReferralsCount(): Int
+
+    @Query("SELECT COALESCE(SUM(rewardAmount), 0.0) FROM referrals WHERE rewardStatus = 'CREDITED'")
+    suspend fun getTotalRewardsCredited(): Double
+}
+
+@Dao
+interface WalletDao {
+    @Query("SELECT * FROM wallets WHERE userId = :userId")
+    suspend fun getWallet(userId: String): com.example.data.model.WalletEntity?
+
+    @Query("SELECT * FROM wallets WHERE userId = :userId")
+    fun observeWallet(userId: String): Flow<com.example.data.model.WalletEntity?>
+
+    @Query("SELECT * FROM wallets ORDER BY referralBalance DESC")
+    fun getAllWallets(): Flow<List<com.example.data.model.WalletEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateWallet(wallet: com.example.data.model.WalletEntity)
+
+    @Query("UPDATE wallets SET isFrozen = :isFrozen, freezeReason = :freezeReason WHERE userId = :userId")
+    suspend fun updateWalletFreezeStatus(userId: String, isFrozen: Boolean, freezeReason: String)
+}
+
+@Dao
+interface WalletTransactionDao {
+    @Query("SELECT * FROM wallet_transactions WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getTransactionsForUser(userId: String): Flow<List<com.example.data.model.WalletTransactionEntity>>
+
+    @Query("SELECT * FROM wallet_transactions ORDER BY timestamp DESC")
+    fun getAllTransactions(): Flow<List<com.example.data.model.WalletTransactionEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransaction(transaction: com.example.data.model.WalletTransactionEntity): Long
+}
+
+@Dao
+interface WithdrawalRequestDao {
+    @Query("SELECT * FROM withdrawal_requests ORDER BY requestedAt DESC")
+    fun getAllWithdrawals(): Flow<List<com.example.data.model.WithdrawalRequestEntity>>
+
+    @Query("SELECT * FROM withdrawal_requests WHERE userId = :userId ORDER BY requestedAt DESC")
+    fun getWithdrawalsForUser(userId: String): Flow<List<com.example.data.model.WithdrawalRequestEntity>>
+
+    @Query("SELECT * FROM withdrawal_requests WHERE status = 'PENDING' ORDER BY requestedAt DESC")
+    fun getPendingWithdrawals(): Flow<List<com.example.data.model.WithdrawalRequestEntity>>
+
+    @Query("SELECT * FROM withdrawal_requests WHERE id = :id")
+    suspend fun getWithdrawalById(id: Long): com.example.data.model.WithdrawalRequestEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWithdrawal(request: com.example.data.model.WithdrawalRequestEntity): Long
+
+    @Update
+    suspend fun updateWithdrawal(request: com.example.data.model.WithdrawalRequestEntity)
+
+    @Query("UPDATE withdrawal_requests SET status = :status, processedAt = :processedAt, adminNotes = :notes, paymentReference = :ref WHERE id = :id")
+    suspend fun updateWithdrawalStatus(id: Long, status: String, processedAt: Long?, notes: String, ref: String)
+
+    @Query("UPDATE withdrawal_requests SET status = 'REJECTED', processedAt = :processedAt, rejectionReason = :reason, adminNotes = :notes WHERE id = :id")
+    suspend fun rejectWithdrawal(id: Long, reason: String, notes: String, processedAt: Long = System.currentTimeMillis())
+
+    @Query("SELECT COUNT(*) FROM withdrawal_requests WHERE status = 'PENDING'")
+    suspend fun getPendingCount(): Int
+
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM withdrawal_requests WHERE status = 'PENDING'")
+    suspend fun getPendingAmount(): Double
+
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM withdrawal_requests WHERE status = 'PAID'")
+    suspend fun getPaidAmount(): Double
+}
+
+@Dao
+interface OwnerChatDao {
+    @Query("SELECT * FROM owner_chats ORDER BY lastMessageTimestamp DESC")
+    fun getAllChats(): Flow<List<com.example.data.model.OwnerChatEntity>>
+
+    @Query("SELECT * FROM owner_chats WHERE userId = :userId LIMIT 1")
+    suspend fun getChatByUserId(userId: String): com.example.data.model.OwnerChatEntity?
+
+    @Query("SELECT * FROM owner_chats WHERE userId = :userId LIMIT 1")
+    fun observeChatByUserId(userId: String): Flow<com.example.data.model.OwnerChatEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateChat(chat: com.example.data.model.OwnerChatEntity)
+
+    @Query("UPDATE owner_chats SET unreadCountForAdmin = 0 WHERE userId = :userId")
+    suspend fun markAdminRead(userId: String)
+
+    @Query("UPDATE owner_chats SET unreadCountForUser = 0 WHERE userId = :userId")
+    suspend fun markUserRead(userId: String)
+
+    @Query("UPDATE owner_chats SET isBlocked = :isBlocked WHERE userId = :userId")
+    suspend fun updateBlockStatus(userId: String, isBlocked: Boolean)
+}
+
+@Dao
+interface ChatMessageDao {
+    @Query("SELECT * FROM chat_messages WHERE chatUserId = :chatUserId ORDER BY timestamp ASC")
+    fun getMessagesForChat(chatUserId: String): Flow<List<com.example.data.model.ChatMessageEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessage(message: com.example.data.model.ChatMessageEntity): Long
+
+    @Query("UPDATE chat_messages SET isRead = 1 WHERE chatUserId = :chatUserId AND senderRole != :readerRole")
+    suspend fun markMessagesAsRead(chatUserId: String, readerRole: String)
+}
+
 
