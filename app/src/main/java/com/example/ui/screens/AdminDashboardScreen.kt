@@ -3208,25 +3208,28 @@ fun AdminMonetizationTabContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                AdminStatCard(
+                MetricCard(
                     title = "Pending Review",
                     value = "$pendingCount",
+                    subtext = if (pendingCount > 0) "Needs Review" else "Clean Queue",
                     icon = Icons.Default.HourglassEmpty,
-                    color = Color(0xFFF59E0B),
+                    accentColor = Color(0xFFF59E0B),
                     modifier = Modifier.weight(1f)
                 )
-                AdminStatCard(
+                MetricCard(
                     title = "Approved Partners",
                     value = "$approvedCount",
+                    subtext = "Monetized",
                     icon = Icons.Default.CheckCircle,
-                    color = Color(0xFF10B981),
+                    accentColor = Color(0xFF10B981),
                     modifier = Modifier.weight(1f)
                 )
-                AdminStatCard(
+                MetricCard(
                     title = "Rejected",
                     value = "$rejectedCount",
+                    subtext = "Needs Reapply",
                     icon = Icons.Default.Cancel,
-                    color = Color(0xFFEF4444),
+                    accentColor = Color(0xFFEF4444),
                     modifier = Modifier.weight(1f)
                 )
             }

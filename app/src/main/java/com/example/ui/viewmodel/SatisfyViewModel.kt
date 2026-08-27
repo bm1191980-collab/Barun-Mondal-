@@ -1350,7 +1350,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                     status = "PENDING"
                 )
                 repository.submitMonetizationApplication(app)
-                adminRepository.recordAuditLog("MONETIZATION_APPLY", "Submitted monetization application for ${profile.name}", profile.uid)
+                adminRepository.logAuditAction("MONETIZATION_APPLY", profile.uid, "Submitted monetization application for ${profile.name}")
                 onResult(true, "Monetization application submitted successfully! Review pending.")
             } catch (e: Exception) {
                 onResult(false, e.message ?: "Failed to submit application")
@@ -1368,7 +1368,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                     rejectionReason = null,
                     adminNotes = notes
                 )
-                adminRepository.recordAuditLog("MONETIZATION_APPROVE", "Approved monetization application #$applicationId", "admin")
+                adminRepository.logAuditAction("MONETIZATION_APPROVE", "admin", "Approved monetization application #$applicationId")
                 onResult(true, "Monetization application approved!")
             } catch (e: Exception) {
                 onResult(false, e.message ?: "Failed to approve application")
@@ -1386,7 +1386,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                     rejectionReason = reason,
                     adminNotes = notes
                 )
-                adminRepository.recordAuditLog("MONETIZATION_REJECT", "Rejected monetization application #$applicationId. Reason: $reason", "admin")
+                adminRepository.logAuditAction("MONETIZATION_REJECT", "admin", "Rejected monetization application #$applicationId. Reason: $reason")
                 onResult(true, "Monetization application rejected.")
             } catch (e: Exception) {
                 onResult(false, e.message ?: "Failed to reject application")

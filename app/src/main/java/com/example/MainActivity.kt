@@ -424,13 +424,17 @@ class MainActivity : ComponentActivity() {
                                 }
                                 ScreenTab.CREATOR_ANALYTICS -> {
                                     CreatorAnalyticsScreen(
-                                        summary = creatorAnalyticsSummary,
+                                        analyticsSummary = creatorAnalyticsSummary,
+                                        userProfile = userProfile,
                                         onBack = { viewModel.currentTab.value = ScreenTab.PROFILE },
-                                        onOpenShort = { short ->
-                                            viewModel.currentTab.value = ScreenTab.SHORTS
-                                        },
-                                        onOpenVideo = { video ->
-                                            viewModel.openVideo(video, expanded = true)
+                                        onNavigateToMonetization = { viewModel.currentTab.value = ScreenTab.MONETIZATION },
+                                        onNavigateToRules = { viewModel.currentTab.value = ScreenTab.SATISFY_RULES },
+                                        onSelectPost = { post ->
+                                            if (post.type == PostType.SHORT) {
+                                                viewModel.currentTab.value = ScreenTab.SHORTS
+                                            } else {
+                                                viewModel.openVideo(post, expanded = true)
+                                            }
                                         }
                                     )
                                 }
@@ -438,11 +442,13 @@ class MainActivity : ComponentActivity() {
                                     MonetizationScreen(
                                         eligibility = monetizationEligibility,
                                         application = userMonetizationApplication,
-                                        onSubmitApplication = { chName, chHandle, chAvatar ->
-                                            viewModel.submitMonetizationApplication(chName, chHandle, chAvatar)
-                                        },
-                                        onOpenRules = { viewModel.currentTab.value = ScreenTab.SATISFY_RULES },
-                                        onBack = { viewModel.currentTab.value = ScreenTab.PROFILE }
+                                        userProfile = userProfile,
+                                        onBack = { viewModel.currentTab.value = ScreenTab.PROFILE },
+                                        onNavigateToAnalytics = { viewModel.currentTab.value = ScreenTab.CREATOR_ANALYTICS },
+                                        onNavigateToRules = { viewModel.currentTab.value = ScreenTab.SATISFY_RULES },
+                                        onApplyForMonetization = { callback ->
+                                            viewModel.submitMonetizationApplication(onResult = callback)
+                                        }
                                     )
                                 }
                                 ScreenTab.SATISFY_RULES -> {
