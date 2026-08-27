@@ -2,6 +2,7 @@ package com.example.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.util.Locale
 
 enum class PostType {
     VIDEO,
@@ -34,15 +35,16 @@ data class PostEntity(
     val channelName: String,
     val channelAvatar: String = "",
     val subscriberCount: String = "1.2K subscribers",
-    val views: String = "12K views",
-    val viewCount: Long = 12400L,
-    val likeCount: Long = 850L,
-    val dislikeCount: Long = 12L,
-    val commentCount: Long = 48L,
+    val views: String = "0 views",
+    val viewCount: Long = 0L,
+    val likeCount: Long = 0L,
+    val dislikeCount: Long = 0L,
+    val commentCount: Long = 0L,
     val timestamp: Long = System.currentTimeMillis(),
     val timeAgo: String = "Just now",
     val category: String = "All",
-    val duration: String = "10:24",
+    val duration: String = "00:00",
+    val durationSeconds: Long = 0L,
     val isVerified: Boolean = true,
     val tags: String = "#Satisfy #Trending",
     val isUserCreated: Boolean = false,
@@ -58,7 +60,10 @@ data class PostEntity(
     val rejectionReason: String? = null,
     val creatorUid: String = "",
     val videoUri: String? = null,
-    val isPremium: Boolean = false
+    val isPremium: Boolean = false,
+    val approvedAt: Long? = null,
+    val rejectedAt: Long? = null,
+    val qualities: String = "Auto,1080p,720p,480p,360p"
 )
 
 @Entity(tableName = "creator_pages")
@@ -84,21 +89,27 @@ data class CommentEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val postId: Long,
+    val authorUid: String = "user_creator",
     val authorName: String,
     val authorAvatar: String = "",
     val text: String,
+    val parentCommentId: Long? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val timeAgo: String = "Just now",
     val likeCount: Long = 0,
     val isLiked: Boolean = false,
-    val isCreatorHearted: Boolean = false
+    val isCreatorHearted: Boolean = false,
+    val isReported: Boolean = false
 )
 
 @Entity(tableName = "watch_history")
 data class WatchHistoryEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val userId: String = "user_creator",
     val postId: Long,
+    val lastPositionSeconds: Long = 0L,
+    val durationSeconds: Long = 0L,
     val watchedAt: Long = System.currentTimeMillis()
 )
 
@@ -118,3 +129,44 @@ data class UserProfile(
     val referralCode: String = "SATISFY100",
     val referredByCode: String? = null
 )
+
+// Dynamic Formatter Helpers to eliminate dummy/hardcoded numbers everywhere
+fun formatCount(count: Long): String {
+    return when {
+        count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
+        count >= 1_000 -> String.format(Locale.US, "%.1fK", count / 1_000.0)
+        else -> count.toString()
+    }
+}
+
+fun formatViews(count: Long): String {
+    val formatted = formatCount(count)
+    return if (count == 1L) "$formatted view" else "$formatted views"
+}
+
+fun formatSubscribers(count: Long): String {
+    val formatted = formatCount(count)
+    return if (count == 1L) "$formatted subscriber" else "$formatted subscribers"
+}
+
+fun formatTimeAgo(timestamp: Long): String {
+    val diff = System.currentTimeMillis() - timestamp
+    val seconds = diff / 1000
+    val minutes = seconds / 60
+    val hours = minutes / 60
+    val days = hours / 24
+    val weeks = days / 7
+    val months = days / 30
+    val years = days / 365
+
+    return when {
+        years > 0 -> if (years == 1L) "1 year ago" else "$years years ago"
+        months > 0 -> if (months == 1L) "1 month ago" else "$months months ago"
+        weeks > 0 -> if (weeks == 1L) "1 week ago" else "$weeks weeks ago"
+        days > 0 -> if (days == 1L) "1 day ago" else "$days days ago"
+        hours > 0 -> if (hours == 1L) "1 hour ago" else "$hours hours ago"
+        minutes > 0 -> if (minutes == 1L) "1 min ago" else "$minutes mins ago"
+        else -> "Just now"
+    }
+}
+

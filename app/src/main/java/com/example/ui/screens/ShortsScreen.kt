@@ -1,9 +1,11 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -19,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -29,11 +30,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.example.data.model.PostEntity
+import com.example.data.model.PostType
+import com.example.data.service.SatisfyVideoEngine
 import com.example.ui.theme.*
-import kotlin.math.sin
 
+@OptIn(UnstableApi::class)
 @Composable
 fun ShortsScreen(
     shorts: List<PostEntity>,
@@ -80,6 +90,8 @@ fun ShortsScreen(
     val currentShort = shorts.getOrElse(currentIndex.coerceIn(0, shorts.lastIndex)) { shorts.first() }
     val context = LocalContext.current
     var isPlaying by remember { mutableStateOf(true) }
+    var isBuffering by remember { mutableStateOf(true) }
+    var shortsError by remember { mutableStateOf<String?>(null) }
     var isCaptionExpanded by remember { mutableStateOf(false) }
 
     // Vinyl spinning rotation
@@ -93,6 +105,46 @@ fun ShortsScreen(
         ),
         label = "vinyl_anim"
     )
+
+    // Shorts ExoPlayer instance with looping
+    val exoPlayer = remember(currentShort.id, currentShort.mediaUrl) {
+        SatisfyVideoEngine.createExoPlayer(context).apply {
+            val mediaItem = SatisfyVideoEngine.createMediaItem(currentShort.mediaUrl, PostType.SHORT)
+            setMediaItem(mediaItem)
+            repeatMode = Player.REPEAT_MODE_ONE
+            playWhenReady = true
+            prepare()
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                isBuffering = state == Player.STATE_BUFFERING
+                if (state == Player.STATE_READY) {
+                    shortsError = null
+                }
+            }
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                isBuffering = false
+                shortsError = SatisfyVideoEngine.parsePlaybackException(error)
+            }
+        }
+        exoPlayer.addListener(listener)
+
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.stop()
+            exoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(isPlaying) {
+        exoPlayer.playWhenReady = isPlaying
+    }
 
     Box(
         modifier = modifier
@@ -117,35 +169,37 @@ fun ShortsScreen(
             }
             .clickable { isPlaying = !isPlaying }
     ) {
-        // Vertical Short Media
-        if (currentShort.thumbnailUrl.isNotBlank()) {
-            AsyncImage(
-                model = currentShort.thumbnailUrl,
-                contentDescription = currentShort.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        }
+        // Real Video Surface for Shorts
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    layoutParams = FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
+            },
+            update = { playerView ->
+                playerView.player = exoPlayer
+            },
+            modifier = Modifier.fillMaxSize()
+        )
 
-        // Ambient Live Dynamic Canvas when Playing
-        if (isPlaying) {
-            Canvas(
+        // Buffering Indicator
+        if (isBuffering) {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.2f))
+                    .background(Color.Black.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
             ) {
-                val width = size.width
-                val height = size.height
-                // Light spark animation
-                val sparkY = (height * 0.5f) + (sin(Math.toRadians(rotationAngle.toDouble())) * 80).toFloat()
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        listOf(SatisfyRed.copy(alpha = 0.25f), Color.Transparent),
-                        center = Offset(width * 0.85f, sparkY),
-                        radius = 180f
-                    ),
-                    radius = 180f,
-                    center = Offset(width * 0.85f, sparkY)
+                CircularProgressIndicator(
+                    color = SatisfyRed,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(40.dp)
                 )
             }
         }

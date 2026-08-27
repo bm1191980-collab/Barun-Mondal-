@@ -12,6 +12,15 @@ interface PostDao {
     @Query("SELECT * FROM posts ORDER BY id DESC")
     fun getAllPosts(): Flow<List<PostEntity>>
 
+    @Query("SELECT * FROM posts")
+    suspend fun getAllPostsList(): List<PostEntity>
+
+    @Query("UPDATE posts SET mediaUrl = :mediaUrl WHERE id = :postId")
+    suspend fun updateMediaUrl(postId: Long, mediaUrl: String)
+
+    @Query("SELECT * FROM posts WHERE status = 'APPROVED' AND type = :type ORDER BY id DESC")
+    fun getApprovedPostsByType(type: PostType): Flow<List<PostEntity>>
+
     @Query("SELECT * FROM posts WHERE type = :type ORDER BY id DESC")
     fun getPostsByType(type: PostType): Flow<List<PostEntity>>
 
@@ -27,8 +36,11 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE isLiked = 1 ORDER BY id DESC")
     fun getLikedPosts(): Flow<List<PostEntity>>
 
-    @Query("SELECT * FROM posts WHERE title LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%' OR tags LIKE '%' || :query || '%' OR channelName LIKE '%' || :query || '%' ORDER BY id DESC")
+    @Query("SELECT * FROM posts WHERE status = 'APPROVED' AND (title LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%' OR tags LIKE '%' || :query || '%' OR channelName LIKE '%' || :query || '%') ORDER BY id DESC")
     fun searchPosts(query: String): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM posts WHERE status = 'APPROVED' AND id != :currentPostId AND (category = :category OR tags LIKE '%' || :category || '%') ORDER BY viewCount DESC, id DESC LIMIT 15")
+    fun getRelatedPosts(currentPostId: Long, category: String): Flow<List<PostEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPost(post: PostEntity): Long
@@ -41,6 +53,15 @@ interface PostDao {
 
     @Delete
     suspend fun deletePost(post: PostEntity)
+
+    @Query("DELETE FROM posts WHERE id = :postId")
+    suspend fun deletePostById(postId: Long)
+
+    @Query("UPDATE posts SET viewCount = :newViewCount, views = :newViews WHERE id = :postId")
+    suspend fun updateViews(postId: Long, newViewCount: Long, newViews: String)
+
+    @Query("UPDATE posts SET isLiked = :isLiked, isDisliked = :isDisliked, likeCount = :likeCount, dislikeCount = :dislikeCount WHERE id = :postId")
+    suspend fun updateLikeDislike(postId: Long, isLiked: Boolean, isDisliked: Boolean, likeCount: Long, dislikeCount: Long)
 
     @Query("UPDATE posts SET isLiked = :isLiked, likeCount = :likeCount, isDisliked = 0 WHERE id = :postId")
     suspend fun updateLike(postId: Long, isLiked: Boolean, likeCount: Long)
@@ -56,6 +77,9 @@ interface PostDao {
 
     @Query("UPDATE posts SET commentCount = commentCount + 1 WHERE id = :postId")
     suspend fun incrementCommentCount(postId: Long)
+
+    @Query("UPDATE posts SET commentCount = CASE WHEN commentCount > 0 THEN commentCount - 1 ELSE 0 END WHERE id = :postId")
+    suspend fun decrementCommentCount(postId: Long)
 
     @Query("SELECT COUNT(*) FROM posts")
     suspend fun getCount(): Int
@@ -81,11 +105,20 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE status = 'APPROVED' ORDER BY id DESC")
     fun getApprovedPosts(): Flow<List<PostEntity>>
 
+    @Query("UPDATE posts SET status = :status, isVerified = :isVerified, rejectionReason = :rejectionReason, approvedAt = :approvedAt, rejectedAt = :rejectedAt WHERE id = :postId")
+    suspend fun updatePostStatusWithTimestamps(postId: Long, status: String, isVerified: Boolean, rejectionReason: String?, approvedAt: Long?, rejectedAt: Long?)
+
     @Query("UPDATE posts SET status = :status, isVerified = :isVerified, rejectionReason = :rejectionReason WHERE id = :postId")
     suspend fun updatePostStatus(postId: Long, status: String, isVerified: Boolean, rejectionReason: String?)
 
+    @Query("UPDATE posts SET status = 'APPROVED', isVerified = 1, rejectionReason = NULL, approvedAt = :approvedAt WHERE id = :postId")
+    suspend fun approvePostWithTime(postId: Long, approvedAt: Long = System.currentTimeMillis())
+
     @Query("UPDATE posts SET status = 'APPROVED', isVerified = 1, rejectionReason = NULL WHERE id = :postId")
     suspend fun approvePost(postId: Long)
+
+    @Query("UPDATE posts SET status = 'REJECTED', isVerified = 0, rejectionReason = :reason, rejectedAt = :rejectedAt WHERE id = :postId")
+    suspend fun rejectPostWithTime(postId: Long, reason: String, rejectedAt: Long = System.currentTimeMillis())
 
     @Query("UPDATE posts SET status = 'REJECTED', isVerified = 0, rejectionReason = :reason WHERE id = :postId")
     suspend fun rejectPost(postId: Long, reason: String)
@@ -96,7 +129,7 @@ interface PostDao {
 
 @Dao
 interface CommentDao {
-    @Query("SELECT * FROM comments WHERE postId = :postId ORDER BY id DESC")
+    @Query("SELECT * FROM comments WHERE postId = :postId ORDER BY id ASC")
     fun getCommentsForPost(postId: Long): Flow<List<CommentEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -108,14 +141,23 @@ interface CommentDao {
     @Query("UPDATE comments SET isLiked = :isLiked, likeCount = :likeCount WHERE id = :commentId")
     suspend fun updateCommentLike(commentId: Long, isLiked: Boolean, likeCount: Long)
 
+    @Query("UPDATE comments SET isReported = 1 WHERE id = :commentId")
+    suspend fun reportComment(commentId: Long)
+
     @Delete
     suspend fun deleteComment(comment: CommentEntity)
+
+    @Query("DELETE FROM comments WHERE id = :commentId")
+    suspend fun deleteCommentById(commentId: Long)
 }
 
 @Dao
 interface WatchHistoryDao {
     @Query("SELECT p.* FROM posts p INNER JOIN watch_history h ON p.id = h.postId ORDER BY h.watchedAt DESC")
     fun getWatchHistory(): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM watch_history WHERE postId = :postId ORDER BY watchedAt DESC LIMIT 1")
+    suspend fun getWatchProgressForPost(postId: Long): WatchHistoryEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun recordWatch(history: WatchHistoryEntity)

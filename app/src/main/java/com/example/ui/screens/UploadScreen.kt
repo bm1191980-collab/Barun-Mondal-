@@ -824,14 +824,34 @@ fun UploadScreen(
             item {
                 Button(
                     onClick = {
+                        val persistentMediaUrl = if (selectedGalleryUri != null) {
+                            com.example.data.service.SatisfyVideoEngine.saveMediaToInternalStorage(
+                                context,
+                                selectedGalleryUri!!,
+                                isVideo = selectedType != PostType.PHOTO
+                            )
+                        } else {
+                            activeMediaUrl
+                        }
+
+                        val persistentThumbUrl = if (selectedCustomThumbnailUri != null) {
+                            com.example.data.service.SatisfyVideoEngine.saveMediaToInternalStorage(
+                                context,
+                                selectedCustomThumbnailUri!!,
+                                isVideo = false
+                            )
+                        } else {
+                            activeThumbnail
+                        }
+
                         onPublish(
                             selectedType,
                             title,
                             description,
                             selectedCategory,
                             tags,
-                            activeThumbnail,
-                            activeMediaUrl,
+                            persistentThumbUrl,
+                            persistentMediaUrl,
                             selectedDuration
                         )
                     },

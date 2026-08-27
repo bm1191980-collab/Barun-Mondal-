@@ -381,8 +381,14 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             showControls = true
         )
         viewModelScope.launch {
+            repository.incrementViewCount(post.id)
             repository.recordWatchHistory(post.id)
             loadComments(post.id)
+            // Refresh active post with updated view count
+            val updated = repository.getPostById(post.id)
+            if (updated != null && playerState.value.activePost?.id == post.id) {
+                playerState.value = playerState.value.copy(activePost = updated)
+            }
         }
     }
 
