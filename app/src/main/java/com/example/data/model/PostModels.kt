@@ -130,6 +130,60 @@ data class UserProfile(
     val referredByCode: String? = null
 )
 
+@Entity(tableName = "monetization_applications")
+data class MonetizationApplicationEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val userId: String = "user_creator",
+    val channelName: String,
+    val channelHandle: String,
+    val channelAvatar: String = "",
+    val subscriberCount: Long = 0L,
+    val normalVideoWatchHours: Double = 0.0,
+    val shortsWatchHours: Double = 0.0,
+    val totalShortsCount: Int = 0,
+    val totalVideosCount: Int = 0,
+    val appliedAt: Long = System.currentTimeMillis(),
+    val status: String = "PENDING", // PENDING, APPROVED, REJECTED
+    val reviewedAt: Long? = null,
+    val rejectionReason: String? = null,
+    val adminNotes: String = ""
+)
+
+data class CreatorAnalyticsSummary(
+    val totalShortsUploaded: Int = 0,
+    val totalShortsViews: Long = 0L,
+    val totalShortsWatchTimeSeconds: Long = 0L,
+    val totalVideosUploaded: Int = 0,
+    val totalVideoViews: Long = 0L,
+    val totalVideoWatchTimeSeconds: Long = 0L,
+    val totalSubscribers: Long = 1250L,
+    val individualShorts: List<PostEntity> = emptyList(),
+    val individualVideos: List<PostEntity> = emptyList()
+)
+
+data class MonetizationEligibility(
+    val currentSubscribers: Long = 0L,
+    val requiredSubscribers: Long = 500L,
+    val isSubscriberRequirementMet: Boolean = false,
+
+    val currentNormalWatchHours: Double = 0.0,
+    val requiredNormalWatchHours: Double = 4000.0,
+    val isNormalWatchRequirementMet: Boolean = false,
+
+    val currentShortsWatchHours: Double = 0.0,
+    val requiredShortsWatchHours: Double = 10000.0,
+    val isShortsWatchRequirementMet: Boolean = false,
+
+    val isPathwayAMet: Boolean = false, // 500 subs + 4000 normal hrs
+    val isPathwayBMet: Boolean = false, // 500 subs + 10000 shorts hrs
+    val isEligible: Boolean = false,
+
+    val remainingSubscribers: Long = 0L,
+    val remainingNormalWatchHours: Double = 0.0,
+    val remainingShortsWatchHours: Double = 0.0
+)
+
 // Dynamic Formatter Helpers to eliminate dummy/hardcoded numbers everywhere
 fun formatCount(count: Long): String {
     return when {
@@ -147,6 +201,25 @@ fun formatViews(count: Long): String {
 fun formatSubscribers(count: Long): String {
     val formatted = formatCount(count)
     return if (count == 1L) "$formatted subscriber" else "$formatted subscribers"
+}
+
+fun formatWatchTime(totalSeconds: Long): String {
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m ${seconds}s"
+        minutes > 0 -> "${minutes}m ${seconds}s"
+        else -> "${seconds}s"
+    }
+}
+
+fun formatWatchHoursDouble(hours: Double): String {
+    return if (hours >= 1000.0) {
+        String.format(Locale.US, "%,.1f hrs", hours)
+    } else {
+        String.format(Locale.US, "%.1f hrs", hours)
+    }
 }
 
 fun formatTimeAgo(timestamp: Long): String {

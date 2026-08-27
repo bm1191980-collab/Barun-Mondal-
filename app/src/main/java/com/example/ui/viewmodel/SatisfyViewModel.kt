@@ -26,7 +26,10 @@ enum class ScreenTab {
     PAGE_DETAILS,
     PRO_MEMBERSHIP,
     WALLET,
-    OWNER_CHAT
+    OWNER_CHAT,
+    CREATOR_ANALYTICS,
+    MONETIZATION,
+    SATISFY_RULES
 }
 
 data class PlayerState(
@@ -116,6 +119,12 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     val uploadSuccessMessage = MutableStateFlow<String?>(null)
     val uploadProcessingState = MutableStateFlow(UploadProcessingState())
 
+    // Monetization & Analytics state flows
+    val allMonetizationApplications: StateFlow<List<MonetizationApplicationEntity>>
+    val userMonetizationApplication: StateFlow<MonetizationApplicationEntity?>
+    val creatorAnalyticsSummary: StateFlow<CreatorAnalyticsSummary>
+    val monetizationEligibility: StateFlow<MonetizationEligibility>
+
     // Comments for active video
     private val _activePostComments = MutableStateFlow<List<CommentEntity>>(emptyList())
     val activePostComments: StateFlow<List<CommentEntity>> = _activePostComments.asStateFlow()
@@ -145,7 +154,8 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             postDao = database.postDao(),
             commentDao = database.commentDao(),
             historyDao = database.watchHistoryDao(),
-            creatorPageDao = database.creatorPageDao()
+            creatorPageDao = database.creatorPageDao(),
+            monetizationDao = database.monetizationDao()
         )
         adminRepository = AdminRepository(
             context = application.applicationContext,
@@ -345,6 +355,107 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
+        )
+
+        allMonetizationApplications = repository.monetizationApplications.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+        userMonetizationApplication = repository.observeUserMonetizationApplication(userProfile.value.uid).stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            null
+        )
+
+        creatorAnalyticsSummary = combine(
+            allPosts,
+            userCreatedPosts,
+            userProfile
+        ) { all, created, profile ->
+            val userPosts = if (created.isNotEmpty()) {
+                created
+            } else {
+                all.filter { it.channelName.equals(profile.name, ignoreCase = true) || it.isUserCreated }
+            }
+            val shorts = userPosts.filter { it.type == PostType.SHORT }
+            val videos = userPosts.filter { it.type == PostType.VIDEO }
+
+            val shortsViews = shorts.sumOf { it.viewCount }
+            val shortsWatchSecs = shorts.sumOf { it.watchTimeSeconds }
+            val videoViews = videos.sumOf { it.viewCount }
+            val videoWatchSecs = videos.sumOf { it.watchTimeSeconds }
+
+            // Extract numeric subscriber count if possible, fallback to 1250L
+            val rawSubText = profile.subscriberCount.replace("subscribers", "").replace("subscriber", "").trim()
+            val subCount = when {
+                rawSubText.endsWith("K", ignoreCase = true) -> {
+                    val num = rawSubText.dropLast(1).toDoubleOrNull() ?: 1.2
+                    (num * 1000).toLong()
+                }
+                rawSubText.endsWith("M", ignoreCase = true) -> {
+                    val num = rawSubText.dropLast(1).toDoubleOrNull() ?: 1.0
+                    (num * 1000000).toLong()
+                }
+                else -> rawSubText.toLongOrNull() ?: 1250L
+            }
+
+            CreatorAnalyticsSummary(
+                totalShortsUploaded = shorts.size,
+                totalShortsViews = shortsViews,
+                totalShortsWatchTimeSeconds = shortsWatchSecs,
+                totalVideosUploaded = videos.size,
+                totalVideoViews = videoViews,
+                totalVideoWatchTimeSeconds = videoWatchSecs,
+                totalSubscribers = subCount,
+                individualShorts = shorts,
+                individualVideos = videos
+            )
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            CreatorAnalyticsSummary()
+        )
+
+        monetizationEligibility = creatorAnalyticsSummary.map { summary ->
+            val subs = summary.totalSubscribers
+            val normalHours = summary.totalVideoWatchTimeSeconds / 3600.0
+            val shortsHours = summary.totalShortsWatchTimeSeconds / 3600.0
+
+            val subsMet = subs >= 500L
+            val normalMet = normalHours >= 4000.0
+            val shortsMet = shortsHours >= 10000.0
+
+            val pathwayAMet = subsMet && normalMet
+            val pathwayBMet = subsMet && shortsMet
+            val isEligible = pathwayAMet || pathwayBMet
+
+            MonetizationEligibility(
+                currentSubscribers = subs,
+                requiredSubscribers = 500L,
+                isSubscriberRequirementMet = subsMet,
+
+                currentNormalWatchHours = normalHours,
+                requiredNormalWatchHours = 4000.0,
+                isNormalWatchRequirementMet = normalMet,
+
+                currentShortsWatchHours = shortsHours,
+                requiredShortsWatchHours = 10000.0,
+                isShortsWatchRequirementMet = shortsMet,
+
+                isPathwayAMet = pathwayAMet,
+                isPathwayBMet = pathwayBMet,
+                isEligible = isEligible,
+
+                remainingSubscribers = maxOf(0L, 500L - subs),
+                remainingNormalWatchHours = maxOf(0.0, 4000.0 - normalHours),
+                remainingShortsWatchHours = maxOf(0.0, 10000.0 - shortsHours)
+            )
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            MonetizationEligibility()
         )
 
         // Listen to admin active chat user changes
@@ -1215,6 +1326,71 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     fun togglePostPremiumStatus(post: PostEntity) {
         viewModelScope.launch {
             proRepository.togglePostPremiumStatus(post.id, !post.isPremium)
+        }
+    }
+
+    fun submitMonetizationApplication(onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            try {
+                val summary = creatorAnalyticsSummary.value
+                val profile = userProfile.value
+                val normalHours = summary.totalVideoWatchTimeSeconds / 3600.0
+                val shortsHours = summary.totalShortsWatchTimeSeconds / 3600.0
+
+                val app = MonetizationApplicationEntity(
+                    userId = profile.uid,
+                    channelName = profile.name,
+                    channelHandle = profile.handle,
+                    channelAvatar = profile.avatarUrl,
+                    subscriberCount = summary.totalSubscribers,
+                    normalVideoWatchHours = normalHours,
+                    shortsWatchHours = shortsHours,
+                    totalShortsCount = summary.totalShortsUploaded,
+                    totalVideosCount = summary.totalVideosUploaded,
+                    status = "PENDING"
+                )
+                repository.submitMonetizationApplication(app)
+                adminRepository.recordAuditLog("MONETIZATION_APPLY", "Submitted monetization application for ${profile.name}", profile.uid)
+                onResult(true, "Monetization application submitted successfully! Review pending.")
+            } catch (e: Exception) {
+                onResult(false, e.message ?: "Failed to submit application")
+            }
+        }
+    }
+
+    fun adminApproveMonetization(applicationId: Long, notes: String = "", onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            try {
+                repository.updateMonetizationStatus(
+                    id = applicationId,
+                    status = "APPROVED",
+                    reviewedAt = System.currentTimeMillis(),
+                    rejectionReason = null,
+                    adminNotes = notes
+                )
+                adminRepository.recordAuditLog("MONETIZATION_APPROVE", "Approved monetization application #$applicationId", "admin")
+                onResult(true, "Monetization application approved!")
+            } catch (e: Exception) {
+                onResult(false, e.message ?: "Failed to approve application")
+            }
+        }
+    }
+
+    fun adminRejectMonetization(applicationId: Long, reason: String, notes: String = "", onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            try {
+                repository.updateMonetizationStatus(
+                    id = applicationId,
+                    status = "REJECTED",
+                    reviewedAt = System.currentTimeMillis(),
+                    rejectionReason = reason,
+                    adminNotes = notes
+                )
+                adminRepository.recordAuditLog("MONETIZATION_REJECT", "Rejected monetization application #$applicationId. Reason: $reason", "admin")
+                onResult(true, "Monetization application rejected.")
+            } catch (e: Exception) {
+                onResult(false, e.message ?: "Failed to reject application")
+            }
         }
     }
 }

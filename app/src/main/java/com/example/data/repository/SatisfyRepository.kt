@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import com.example.data.local.CommentDao
 import com.example.data.local.CreatorPageDao
+import com.example.data.local.MonetizationDao
 import com.example.data.local.PostDao
 import com.example.data.local.WatchHistoryDao
 import com.example.data.model.*
@@ -11,7 +12,8 @@ class SatisfyRepository(
     private val postDao: PostDao,
     private val commentDao: CommentDao,
     private val historyDao: WatchHistoryDao,
-    private val creatorPageDao: CreatorPageDao
+    private val creatorPageDao: CreatorPageDao,
+    private val monetizationDao: MonetizationDao
 ) {
     val allPosts: Flow<List<PostEntity>> = postDao.getAllPosts()
     val pendingVerificationPosts: Flow<List<PostEntity>> = postDao.getPendingVerificationPosts()
@@ -24,6 +26,20 @@ class SatisfyRepository(
     val likedPosts: Flow<List<PostEntity>> = postDao.getLikedPosts()
     val watchHistory: Flow<List<PostEntity>> = historyDao.getWatchHistory()
     val creatorPages: Flow<List<CreatorPageEntity>> = creatorPageDao.getAllPages()
+    val monetizationApplications: Flow<List<MonetizationApplicationEntity>> = monetizationDao.getAllApplications()
+
+    fun observeUserMonetizationApplication(userId: String): Flow<MonetizationApplicationEntity?> =
+        monetizationDao.observeUserApplication(userId)
+
+    suspend fun getUserMonetizationApplication(userId: String): MonetizationApplicationEntity? =
+        monetizationDao.getUserApplication(userId)
+
+    suspend fun submitMonetizationApplication(application: MonetizationApplicationEntity): Long =
+        monetizationDao.insertApplication(application)
+
+    suspend fun updateMonetizationStatus(id: Long, status: String, reviewedAt: Long?, rejectionReason: String?, adminNotes: String = "") {
+        monetizationDao.updateApplicationStatus(id, status, reviewedAt, rejectionReason, adminNotes)
+    }
 
     fun searchPosts(query: String): Flow<List<PostEntity>> = postDao.searchPosts(query)
 

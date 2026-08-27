@@ -505,4 +505,28 @@ interface ChatMessageDao {
     suspend fun markMessagesAsRead(chatUserId: String, readerRole: String)
 }
 
+@Dao
+interface MonetizationDao {
+    @Query("SELECT * FROM monetization_applications ORDER BY appliedAt DESC")
+    fun getAllApplications(): Flow<List<com.example.data.model.MonetizationApplicationEntity>>
+
+    @Query("SELECT * FROM monetization_applications WHERE userId = :userId ORDER BY appliedAt DESC LIMIT 1")
+    fun observeUserApplication(userId: String): Flow<com.example.data.model.MonetizationApplicationEntity?>
+
+    @Query("SELECT * FROM monetization_applications WHERE userId = :userId ORDER BY appliedAt DESC LIMIT 1")
+    suspend fun getUserApplication(userId: String): com.example.data.model.MonetizationApplicationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertApplication(application: com.example.data.model.MonetizationApplicationEntity): Long
+
+    @Update
+    suspend fun updateApplication(application: com.example.data.model.MonetizationApplicationEntity)
+
+    @Query("UPDATE monetization_applications SET status = :status, reviewedAt = :reviewedAt, rejectionReason = :rejectionReason, adminNotes = :adminNotes WHERE id = :id")
+    suspend fun updateApplicationStatus(id: Long, status: String, reviewedAt: Long?, rejectionReason: String?, adminNotes: String)
+
+    @Query("SELECT COUNT(*) FROM monetization_applications WHERE status = 'PENDING'")
+    suspend fun getPendingApplicationsCount(): Int
+}
+
 

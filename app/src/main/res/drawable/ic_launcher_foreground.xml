@@ -5,44 +5,146 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Play button outer rounded shield -->
+
+    <!-- Outer Rainbow Glow Rounded Border matching the logo -->
     <path
-        android:pathData="M32,32 C32,26.48 36.48,22 42,22 L66,22 C71.52,22 76,26.48 76,32 L76,76 C76,81.52 71.52,86 66,86 L42,86 C36.48,86 32,81.52 32,76 Z">
-        <aapt:attr name="android:fillColor">
+        android:pathData="M27,22 L81,22 C87.63,22 93,27.37 93,34 L93,74 C93,80.63 87.63,86 81,86 L27,86 C20.37,86 15,80.63 15,74 L15,34 C15,27.37 20.37,22 27,22 Z"
+        android:strokeWidth="1.2"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
             <gradient
-                android:startX="32"
+                android:startX="15"
                 android:startY="22"
-                android:endX="76"
+                android:endX="93"
                 android:endY="86"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#FF0055" />
-                <item android:offset="0.5" android:color="#FF2E3B" />
-                <item android:offset="1.0" android:color="#E50914" />
+                <item android:offset="0.0" android:color="#FF0080" />
+                <item android:offset="0.3" android:color="#FF8800" />
+                <item android:offset="0.7" android:color="#9900FF" />
+                <item android:offset="1.0" android:color="#00BFFF" />
             </gradient>
         </aapt:attr>
     </path>
 
-    <!-- Satisfy "S" swoop curve inside the badge -->
+    <!-- Top Ribbon Arc (Magenta -> Coral -> Orange -> Gold) -->
     <path
-        android:pathData="M40,36 C45,33 63,33 68,36 C68,44 48,46 48,54 C48,62 68,64 68,72 C63,75 45,75 40,72"
-        android:strokeWidth="3.5"
-        android:strokeColor="#40FFFFFF"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
+        android:pathData="M37,42 C33,35 37,25 47,24 C57,23 71,30 77,36 C80,39 77,44 72,42 C64,39 52,32 46,34 C41,35 39,39 41,43 C42,45 39,46 37,42 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="33"
+                android:startY="23"
+                android:endX="78"
+                android:endY="44"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF0077" />
+                <item android:offset="0.4" android:color="#FF3366" />
+                <item android:offset="0.75" android:color="#FF7700" />
+                <item android:offset="1.0" android:color="#FFB300" />
+            </gradient>
+        </aapt:attr>
+    </path>
 
-    <!-- Sharp center Play Triangle -->
+    <!-- Top-Left Curving Head of S-Ribbon -->
     <path
-        android:pathData="M47,38 L67,54 L47,70 Z"
-        android:fillColor="#FFFFFFFF" />
+        android:pathData="M35,33 C33,38 35,46 42,50 C44,51 43,53 41,52 C34,48 30,39 33,31 C34,28 37,28 35,33 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="30"
+                android:startY="28"
+                android:endX="44"
+                android:endY="53"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF0099" />
+                <item android:offset="1.0" android:color="#E100FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
 
-    <!-- Sparkle Star for "Satisfaction" (Top Right) -->
+    <!-- Bottom Ribbon Arc (Purple -> Violet -> Deep Blue -> Electric Cyan) -->
     <path
-        android:pathData="M73,27 L74.5,31 L78.5,32.5 L74.5,34 L73,38 L71.5,34 L67.5,32.5 L71.5,31 Z"
-        android:fillColor="#FFE600" />
-        
-    <!-- Small Sparkle (Bottom Left) -->
+        android:pathData="M71,50 C75,57 71,67 61,68 C51,69 37,62 31,56 C28,53 31,48 36,50 C44,53 56,60 62,58 C67,57 69,53 67,49 C66,47 69,46 71,50 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="75"
+                android:startY="46"
+                android:endX="30"
+                android:endY="69"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#B800FF" />
+                <item android:offset="0.35" android:color="#7700FF" />
+                <item android:offset="0.7" android:color="#0055FF" />
+                <item android:offset="1.0" android:color="#00C8FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Bottom-Right Curving Tail of S-Ribbon -->
     <path
-        android:pathData="M30,68 L31,70.5 L33.5,71.5 L31,72.5 L30,75 L29,72.5 L26.5,71.5 L29,70.5 Z"
-        android:fillColor="#FF77A9" />
+        android:pathData="M73,59 C75,54 73,46 66,42 C64,41 65,39 67,40 C74,44 78,53 75,61 C74,64 71,64 73,59 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="78"
+                android:startY="64"
+                android:endX="64"
+                android:endY="39"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#B800FF" />
+                <item android:offset="1.0" android:color="#EC008C" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Crisp Center White Play Triangle with soft rounded corners -->
+    <path
+        android:pathData="M48,37.5 L64,46 C65.3,46.7 65.3,48.3 64,49 L48,57.5 C46.7,58.2 45,57.2 45,55.5 L45,39.5 C45,37.8 46.7,36.8 48,37.5 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Satisfy Wordmark - 'S' (Gradient Coral-Pink to Orange-Pink) -->
+    <path
+        android:pathData="M33.2,74.5 C34.2,73.5 35.8,73.2 37.2,73.5 C38.5,73.8 39.2,74.7 39.1,75.7 C39.0,76.8 38.0,77.4 36.6,77.7 L35.5,78.0 C33.8,78.3 32.5,79.3 32.5,80.7 C32.5,82.4 34.2,83.5 36.8,83.5 C38.4,83.5 39.8,83.0 40.5,82.2 L39.7,81.0 C39.0,81.6 38.0,82.0 36.8,82.0 C35.2,82.0 34.0,81.3 34.0,80.4 C34.0,79.5 34.8,79.0 36.2,78.7 L37.3,78.4 C39.3,78.0 40.6,77.0 40.6,75.4 C40.6,73.6 38.8,72.2 36.3,72.2 C34.6,72.2 33.1,72.8 32.2,73.6 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="32"
+                android:startY="72"
+                android:endX="41"
+                android:endY="84"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF6B4A" />
+                <item android:offset="0.5" android:color="#FF2E7E" />
+                <item android:offset="1.0" android:color="#FF0080" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Satisfy Wordmark - 'a' -->
+    <path
+        android:pathData="M43.0,78.0 C43.0,75.8 44.5,74.8 46.8,74.8 C48.0,74.8 49.0,75.2 49.6,75.8 L49.6,75.0 L51.0,75.0 L51.0,83.2 L49.6,83.2 L49.6,82.4 C49.0,83.0 48.0,83.5 46.8,83.5 C44.5,83.5 43.0,82.2 43.0,80.0 L43.0,78.0 Z M49.6,78.2 L49.6,77.5 C49.1,76.8 48.2,76.3 47.0,76.3 C45.5,76.3 44.5,77.0 44.5,78.4 C44.5,79.8 45.5,80.6 47.0,80.6 C48.2,80.6 49.1,80.0 49.6,79.3 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Satisfy Wordmark - 't' -->
+    <path
+        android:pathData="M53.5,73.0 L55.0,73.0 L55.0,75.0 L57.0,75.0 L57.0,76.3 L55.0,76.3 L55.0,81.5 C55.0,82.2 55.4,82.4 56.2,82.4 L57.0,82.4 L57.0,83.5 L55.8,83.5 C54.2,83.5 53.5,82.8 53.5,81.3 L53.5,76.3 L52.2,76.3 L52.2,75.0 L53.5,75.0 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Satisfy Wordmark - 'i' -->
+    <path
+        android:pathData="M59.0,72.6 C59.0,72.0 59.5,71.5 60.1,71.5 C60.7,71.5 61.2,72.0 61.2,72.6 C61.2,73.2 60.7,73.7 60.1,73.7 C59.5,73.7 59.0,73.2 59.0,72.6 Z M59.4,75.0 L60.8,75.0 L60.8,83.2 L59.4,83.2 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Satisfy Wordmark - 's' -->
+    <path
+        android:pathData="M63.5,81.8 L64.5,80.8 C65.2,81.6 66.2,82.1 67.2,82.1 C68.3,82.1 68.9,81.6 68.9,81.0 C68.9,80.3 68.2,80.0 67.2,79.7 L66.4,79.5 C64.8,79.1 63.8,78.2 63.8,76.8 C63.8,75.3 65.2,74.3 67.0,74.3 C68.4,74.3 69.5,74.8 70.3,75.6 L69.3,76.6 C68.7,76.0 67.9,75.6 67.0,75.6 C66.0,75.6 65.3,76.1 65.3,76.7 C65.3,77.3 65.8,77.6 66.8,77.9 L67.6,78.1 C69.3,78.6 70.4,79.4 70.4,80.9 C70.4,82.5 68.9,83.5 67.0,83.5 C65.6,83.5 64.3,82.8 63.5,81.8 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Satisfy Wordmark - 'f' -->
+    <path
+        android:pathData="M73.0,75.0 L72.0,75.0 L72.0,73.8 L73.0,73.8 L73.0,73.0 C73.0,71.5 74.0,70.5 75.8,70.5 C76.5,70.5 77.1,70.7 77.4,70.9 L76.9,72.1 C76.6,72.0 76.3,71.9 75.8,71.9 C74.8,71.9 74.4,72.4 74.4,73.2 L74.4,73.8 L76.5,73.8 L76.3,75.0 L74.4,75.0 L74.4,83.2 L73.0,83.2 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Satisfy Wordmark - 'y' -->
+    <path
+        android:pathData="M78.0,75.0 L79.5,75.0 L81.5,80.5 L83.5,75.0 L85.0,75.0 L82.2,82.3 C81.4,84.4 80.2,85.5 78.5,85.5 C78.0,85.5 77.5,85.4 77.2,85.2 L77.6,83.9 C77.9,84.1 78.2,84.2 78.6,84.2 C79.6,84.2 80.3,83.5 80.8,82.1 L78.0,75.0 Z"
+        android:fillColor="#FFFFFF" />
+
 </vector>
+

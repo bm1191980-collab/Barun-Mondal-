@@ -738,20 +738,98 @@ fun UploadScreen(
                 )
             }
 
-            // Video Duration (if Video)
-            if (selectedType == PostType.VIDEO) {
+            // Video / Short Duration
+            if (selectedType != PostType.PHOTO) {
+                val durationParts = selectedDuration.split(":")
+                val parsedSeconds = if (durationParts.size == 2) {
+                    (durationParts[0].toLongOrNull() ?: 0L) * 60 + (durationParts[1].toLongOrNull() ?: 0L)
+                } else {
+                    selectedDuration.toLongOrNull() ?: if (selectedType == PostType.SHORT) 45L else 330L
+                }
+                val isShortDurationExceeded = selectedType == PostType.SHORT && parsedSeconds > 90
+
                 item {
-                    OutlinedTextField(
-                        value = selectedDuration,
-                        onValueChange = { selectedDuration = it },
-                        label = { Text("Duration (MM:SS)") },
-                        placeholder = { Text("05:30") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Filled.Timer, contentDescription = null, tint = SatisfyGold)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = selectedDuration,
+                            onValueChange = { selectedDuration = it },
+                            label = {
+                                Text(if (selectedType == PostType.SHORT) "Shorts Duration (Max 90s / 01:30)" else "Video Duration (MM:SS)")
+                            },
+                            placeholder = { Text(if (selectedType == PostType.SHORT) "00:45" else "05:30") },
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = isShortDurationExceeded,
+                            shape = RoundedCornerShape(10.dp),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Timer,
+                                    contentDescription = null,
+                                    tint = if (isShortDurationExceeded) Color(0xFFEF4444) else SatisfyGold
+                                )
+                            }
+                        )
+
+                        // Quick duration preset chips for Shorts
+                        if (selectedType == PostType.SHORT) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                listOf("00:15", "00:30", "00:45", "00:60", "01:30 (Max)").forEach { preset ->
+                                    val cleanPreset = preset.substringBefore(" ")
+                                    SuggestionChip(
+                                        onClick = { selectedDuration = cleanPreset },
+                                        label = { Text(preset, fontSize = 11.sp) },
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                }
+                            }
                         }
-                    )
+
+                        // 90-second Short Rule Warning Banner
+                        if (isShortDurationExceeded) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFEF4444).copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = Color(0xFFEF4444),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Shorts Limit Exceeded (> 90 seconds)",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFEF4444)
+                                        )
+                                        Text(
+                                            text = "Per Satisfy Platform Rules, Shorts cannot exceed 90 seconds. Switch to standard Video or select a shorter duration.",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    Button(
+                                        onClick = { selectedType = PostType.VIDEO },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6)),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("To Video", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -822,6 +900,14 @@ fun UploadScreen(
 
             // Publish Button
             item {
+                val durationParts = selectedDuration.split(":")
+                val parsedSeconds = if (durationParts.size == 2) {
+                    (durationParts[0].toLongOrNull() ?: 0L) * 60 + (durationParts[1].toLongOrNull() ?: 0L)
+                } else {
+                    selectedDuration.toLongOrNull() ?: if (selectedType == PostType.SHORT) 45L else 330L
+                }
+                val isShortDurationExceeded = selectedType == PostType.SHORT && parsedSeconds > 90
+
                 Button(
                     onClick = {
                         val persistentMediaUrl = if (selectedGalleryUri != null) {
@@ -855,7 +941,7 @@ fun UploadScreen(
                             selectedDuration
                         )
                     },
-                    enabled = title.isNotBlank() && !isUploading && !uploadProcessingState.isUploading && !uploadProcessingState.isProcessing,
+                    enabled = title.isNotBlank() && !isUploading && !uploadProcessingState.isUploading && !uploadProcessingState.isProcessing && !isShortDurationExceeded,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary

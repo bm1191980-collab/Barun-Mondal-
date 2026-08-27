@@ -36,6 +36,7 @@ import com.example.ui.theme.*
 
 enum class AdminTab {
     ANALYTICS,
+    MONETIZATION,
     PRO_SYSTEM,
     REFERRALS,
     WITHDRAWALS,
@@ -65,6 +66,7 @@ fun AdminDashboardScreen(
     wallets: List<WalletEntity> = emptyList(),
     withdrawals: List<WithdrawalRequestEntity> = emptyList(),
     ownerChats: List<OwnerChatEntity> = emptyList(),
+    monetizationApplications: List<MonetizationApplicationEntity> = emptyList(),
     activeChatMessages: List<ChatMessageEntity> = emptyList(),
     activeChatUserId: String? = null,
     onBack: () -> Unit,
@@ -93,13 +95,16 @@ fun AdminDashboardScreen(
     onToggleFreezeWallet: (String, Boolean, String) -> Unit = { _, _, _ -> },
     onToggleSuspiciousReferral: (Long, Boolean, String) -> Unit = { _, _, _ -> },
     onReverseReferralReward: (Long, String) -> Unit = { _, _ -> },
-    onCancelSubscription: (Long) -> Unit = {}
+    onCancelSubscription: (Long) -> Unit = {},
+    onApproveMonetization: (Long, String) -> Unit = { _, _ -> },
+    onRejectMonetization: (Long, String, String) -> Unit = { _, _, _ -> }
 ) {
     var selectedTab by remember { mutableStateOf(AdminTab.ANALYTICS) }
     val pendingReportCount = remember(allReports) { allReports.count { it.status == "PENDING" } }
     val pendingVideoCount = remember(allPosts) { allPosts.count { it.status == "PENDING" || (it.isUserCreated && !it.isVerified && it.status != "REJECTED" && it.status != "APPROVED") } }
     val pendingWithdrawalCount = remember(withdrawals) { withdrawals.count { it.status == "PENDING" } }
     val unreadChatCount = remember(ownerChats) { ownerChats.sumOf { it.unreadCountForAdmin } }
+    val pendingMonetizationCount = remember(monetizationApplications) { monetizationApplications.count { it.status == "PENDING" } }
 
     Scaffold(
         topBar = {
@@ -204,6 +209,14 @@ fun AdminDashboardScreen(
                             onClick = { selectedTab = AdminTab.ANALYTICS }
                         )
                         TabItem(
+                            title = "Monetization",
+                            icon = Icons.Filled.MonetizationOn,
+                            badgeCount = pendingMonetizationCount,
+                            isBadgeAlert = pendingMonetizationCount > 0,
+                            selected = selectedTab == AdminTab.MONETIZATION,
+                            onClick = { selectedTab = AdminTab.MONETIZATION }
+                        )
+                        TabItem(
                             title = "PRO System",
                             icon = Icons.Filled.WorkspacePremium,
                             badgeCount = proSubscriptions.size,
@@ -300,6 +313,11 @@ fun AdminDashboardScreen(
                     pushNotifications = pushNotifications,
                     auditLogs = auditLogs,
                     onNavigateToTab = { selectedTab = it }
+                )
+                AdminTab.MONETIZATION -> AdminMonetizationTabContent(
+                    applications = monetizationApplications,
+                    onApprove = onApproveMonetization,
+                    onReject = onRejectMonetization
                 )
                 AdminTab.PRO_SYSTEM -> AdminProTabContent(
                     subscriptions = proSubscriptions,
@@ -3140,3 +3158,448 @@ private fun VerificationPostCard(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AdminMonetizationTabContent(
+    applications: List<MonetizationApplicationEntity>,
+    onApprove: (Long, String) -> Unit,
+    onReject: (Long, String, String) -> Unit
+) {
+    var selectedFilter by remember { mutableStateOf("ALL") }
+    var searchQuery by remember { mutableStateOf("") }
+
+    var selectedAppForApproval by remember { mutableStateOf<MonetizationApplicationEntity?>(null) }
+    var selectedAppForRejection by remember { mutableStateOf<MonetizationApplicationEntity?>(null) }
+    var adminNotesInput by remember { mutableStateOf("") }
+    var rejectionReasonInput by remember { mutableStateOf("Did not meet content originality or traffic integrity standards.") }
+
+    val pendingCount = remember(applications) { applications.count { it.status == "PENDING" } }
+    val approvedCount = remember(applications) { applications.count { it.status == "APPROVED" } }
+    val rejectedCount = remember(applications) { applications.count { it.status == "REJECTED" } }
+
+    val filteredList = remember(applications, selectedFilter, searchQuery) {
+        applications.filter { app ->
+            val matchesFilter = when (selectedFilter) {
+                "PENDING" -> app.status == "PENDING"
+                "APPROVED" -> app.status == "APPROVED"
+                "REJECTED" -> app.status == "REJECTED"
+                else -> true
+            }
+            val matchesSearch = if (searchQuery.isBlank()) true else {
+                app.channelName.contains(searchQuery, ignoreCase = true) ||
+                        app.channelHandle.contains(searchQuery, ignoreCase = true) ||
+                        app.userId.contains(searchQuery, ignoreCase = true)
+            }
+            matchesFilter && matchesSearch
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(bottom = 32.dp)
+    ) {
+        // Summary Header Cards
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AdminStatCard(
+                    title = "Pending Review",
+                    value = "$pendingCount",
+                    icon = Icons.Default.HourglassEmpty,
+                    color = Color(0xFFF59E0B),
+                    modifier = Modifier.weight(1f)
+                )
+                AdminStatCard(
+                    title = "Approved Partners",
+                    value = "$approvedCount",
+                    icon = Icons.Default.CheckCircle,
+                    color = Color(0xFF10B981),
+                    modifier = Modifier.weight(1f)
+                )
+                AdminStatCard(
+                    title = "Rejected",
+                    value = "$rejectedCount",
+                    icon = Icons.Default.Cancel,
+                    color = Color(0xFFEF4444),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // Search Bar & Filter Chips
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search creator by name, handle, or ID...", fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear")
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("ALL" to "All (${applications.size})", "PENDING" to "Pending ($pendingCount)", "APPROVED" to "Approved ($approvedCount)", "REJECTED" to "Rejected ($rejectedCount)").forEach { (key, label) ->
+                        FilterChip(
+                            selected = selectedFilter == key,
+                            onClick = { selectedFilter = key },
+                            label = { Text(label, fontSize = 12.sp) }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Applications list
+        if (filteredList.isEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MonetizationOn,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = "No monetization applications found",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "When eligible creators submit their channel for monetization, they will appear here for review.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            items(filteredList, key = { it.id }) { app ->
+                MonetizationAdminCard(
+                    app = app,
+                    onApproveClick = {
+                        adminNotesInput = ""
+                        selectedAppForApproval = app
+                    },
+                    onRejectClick = {
+                        rejectionReasonInput = "Did not meet content originality or traffic integrity standards."
+                        adminNotesInput = ""
+                        selectedAppForRejection = app
+                    }
+                )
+            }
+        }
+    }
+
+    // Approval Dialog
+    if (selectedAppForApproval != null) {
+        val app = selectedAppForApproval!!
+        AlertDialog(
+            onDismissRequest = { selectedAppForApproval = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = { Text("Approve Monetization Partner", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Are you sure you want to approve ${app.channelName} (${app.channelHandle}) for the Satisfy Partner Program?",
+                        fontSize = 13.sp
+                    )
+                    OutlinedTextField(
+                        value = adminNotesInput,
+                        onValueChange = { adminNotesInput = it },
+                        label = { Text("Admin Notes (Optional)") },
+                        placeholder = { Text("e.g. Verified organic traffic and high quality 4K renders") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onApprove(app.id, adminNotesInput)
+                        selectedAppForApproval = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Text("Approve Channel", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedAppForApproval = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Rejection Dialog
+    if (selectedAppForRejection != null) {
+        val app = selectedAppForRejection!!
+        AlertDialog(
+            onDismissRequest = { selectedAppForRejection = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Cancel,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = { Text("Reject Monetization Application", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Specify the exact reason for rejecting ${app.channelName}. The creator will be shown this feedback:",
+                        fontSize = 13.sp
+                    )
+                    OutlinedTextField(
+                        value = rejectionReasonInput,
+                        onValueChange = { rejectionReasonInput = it },
+                        label = { Text("Rejection Reason *") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    OutlinedTextField(
+                        value = adminNotesInput,
+                        onValueChange = { adminNotesInput = it },
+                        label = { Text("Internal Admin Notes (Optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onReject(app.id, rejectionReasonInput, adminNotesInput)
+                        selectedAppForRejection = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Reject Application", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedAppForRejection = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun MonetizationAdminCard(
+    app: MonetizationApplicationEntity,
+    onApproveClick: () -> Unit,
+    onRejectClick: () -> Unit
+) {
+    val isApproved = app.status == "APPROVED"
+    val isPending = app.status == "PENDING"
+    val isRejected = app.status == "REJECTED"
+
+    val badgeColor = when {
+        isApproved -> Color(0xFF10B981)
+        isPending -> Color(0xFFF59E0B)
+        else -> Color(0xFFEF4444)
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Channel Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    AsyncImage(
+                        model = app.channelAvatar.ifEmpty { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200" },
+                        contentDescription = app.channelName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                    )
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = app.channelName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            if (isApproved) {
+                                Icon(Icons.Default.Verified, contentDescription = null, tint = Color(0xFF3B82F6), modifier = Modifier.size(14.dp))
+                            }
+                        }
+                        Text(
+                            text = "${app.channelHandle} • User: ${app.userId}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+
+                // Status Badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(badgeColor.copy(alpha = 0.15f))
+                        .border(1.dp, badgeColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = app.status,
+                        color = badgeColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+            // Metrics Grid
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "${app.subscriberCount}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (app.subscriberCount >= 500) Color(0xFF10B981) else Color(0xFFEF4444)
+                    )
+                    Text("Subscribers (>=500)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = String.format(java.util.Locale.US, "%.1f hrs", app.normalVideoWatchHours),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (app.normalVideoWatchHours >= 4000.0) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text("Long Video (4K hrs)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = String.format(java.util.Locale.US, "%.1f hrs", app.shortsWatchHours),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (app.shortsWatchHours >= 10000.0) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text("Shorts (10K hrs)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+
+            // Notes / Rejection Reason display
+            if (isRejected && app.rejectionReason != null) {
+                Text(
+                    text = "Rejection Reason: ${app.rejectionReason}",
+                    fontSize = 11.sp,
+                    color = Color(0xFFEF4444),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            if (app.adminNotes != null && app.adminNotes.isNotBlank()) {
+                Text(
+                    text = "Admin Note: ${app.adminNotes}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!isApproved) {
+                    Button(
+                        onClick = onApproveClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Approve Partner", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (!isRejected) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = onRejectClick,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Reject", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+

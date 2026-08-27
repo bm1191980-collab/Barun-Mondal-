@@ -93,18 +93,24 @@ class MainActivity : ComponentActivity() {
             val adminActiveChatUserId by viewModel.adminActiveChatUserId.collectAsStateWithLifecycle()
             val adminActiveChatMessages by viewModel.adminActiveChatMessages.collectAsStateWithLifecycle()
 
+            // Creator Shorts Analytics & Monetization flows
+            val creatorAnalyticsSummary by viewModel.creatorAnalyticsSummary.collectAsStateWithLifecycle()
+            val monetizationEligibility by viewModel.monetizationEligibility.collectAsStateWithLifecycle()
+            val userMonetizationApplication by viewModel.userMonetizationApplication.collectAsStateWithLifecycle()
+            val allMonetizationApplications by viewModel.allMonetizationApplications.collectAsStateWithLifecycle()
+
             var showCommentSheetForPost by remember { mutableStateOf<PostEntity?>(null) }
             var showAdminAuthDialog by remember { mutableStateOf(false) }
             var showCreatePageDialog by remember { mutableStateOf(false) }
             var showSettingsDialog by remember { mutableStateOf(false) }
 
             // Handle back navigation
-            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || showCommentSheetForPost != null) {
+            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES || showCommentSheetForPost != null) {
                 if (showCommentSheetForPost != null) {
                     showCommentSheetForPost = null
                 } else if (playerState.isExpanded) {
                     viewModel.minimizePlayer()
-                } else if (currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT) {
+                } else if (currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES) {
                     viewModel.currentTab.value = ScreenTab.PROFILE
                 } else if (currentTab == ScreenTab.SEARCH) {
                     viewModel.currentTab.value = ScreenTab.HOME
@@ -252,6 +258,9 @@ class MainActivity : ComponentActivity() {
                                         onNavigateToPro = { viewModel.currentTab.value = ScreenTab.PRO_MEMBERSHIP },
                                         onNavigateToWallet = { viewModel.currentTab.value = ScreenTab.WALLET },
                                         onNavigateToOwnerChat = { viewModel.currentTab.value = ScreenTab.OWNER_CHAT },
+                                        onNavigateToAnalytics = { viewModel.currentTab.value = ScreenTab.CREATOR_ANALYTICS },
+                                        onNavigateToMonetization = { viewModel.currentTab.value = ScreenTab.MONETIZATION },
+                                        onNavigateToRules = { viewModel.currentTab.value = ScreenTab.SATISFY_RULES },
                                         onUpdateAvatarUri = { uri -> viewModel.updateProfileAvatarUri(uri) },
                                         onUpdateBannerUri = { uri -> viewModel.updateProfileBannerUri(uri) },
                                         onResetBanner = { viewModel.resetProfileBanner() },
@@ -407,7 +416,38 @@ class MainActivity : ComponentActivity() {
                                         onToggleFreezeWallet = { uid, frozen, reason -> viewModel.adminToggleFreezeWallet(uid, frozen, reason) },
                                         onToggleSuspiciousReferral = { id, susp, reason -> viewModel.adminToggleSuspiciousReferral(id, susp, reason) },
                                         onReverseReferralReward = { id, reason -> viewModel.adminReverseReferralReward(id, reason) },
-                                        onCancelSubscription = { id -> viewModel.adminCancelProSubscription(id) }
+                                        onCancelSubscription = { id -> viewModel.adminCancelProSubscription(id) },
+                                        monetizationApplications = allMonetizationApplications,
+                                        onApproveMonetization = { id, notes -> viewModel.adminApproveMonetization(id, notes) },
+                                        onRejectMonetization = { id, reason, notes -> viewModel.adminRejectMonetization(id, reason, notes) }
+                                    )
+                                }
+                                ScreenTab.CREATOR_ANALYTICS -> {
+                                    CreatorAnalyticsScreen(
+                                        summary = creatorAnalyticsSummary,
+                                        onBack = { viewModel.currentTab.value = ScreenTab.PROFILE },
+                                        onOpenShort = { short ->
+                                            viewModel.currentTab.value = ScreenTab.SHORTS
+                                        },
+                                        onOpenVideo = { video ->
+                                            viewModel.openVideo(video, expanded = true)
+                                        }
+                                    )
+                                }
+                                ScreenTab.MONETIZATION -> {
+                                    MonetizationScreen(
+                                        eligibility = monetizationEligibility,
+                                        application = userMonetizationApplication,
+                                        onSubmitApplication = { chName, chHandle, chAvatar ->
+                                            viewModel.submitMonetizationApplication(chName, chHandle, chAvatar)
+                                        },
+                                        onOpenRules = { viewModel.currentTab.value = ScreenTab.SATISFY_RULES },
+                                        onBack = { viewModel.currentTab.value = ScreenTab.PROFILE }
+                                    )
+                                }
+                                ScreenTab.SATISFY_RULES -> {
+                                    SatisfyRulesScreen(
+                                        onBack = { viewModel.currentTab.value = ScreenTab.PROFILE }
                                     )
                                 }
                             }
