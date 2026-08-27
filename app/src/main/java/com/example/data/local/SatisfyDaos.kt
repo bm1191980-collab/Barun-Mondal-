@@ -345,8 +345,17 @@ interface ReferralDao {
     @Query("SELECT * FROM referrals WHERE refereeUid = :refereeUid LIMIT 1")
     suspend fun getReferralForReferee(refereeUid: String): com.example.data.model.ReferralEntity?
 
+    @Query("SELECT * FROM referrals WHERE refereeUid = :refereeUid AND (hasPurchasedPro = 1 OR commissionStatus = 'AVAILABLE' OR commissionStatus = 'PENDING') LIMIT 1")
+    suspend fun getPurchasedReferralForReferee(refereeUid: String): com.example.data.model.ReferralEntity?
+
+    @Query("SELECT * FROM referrals WHERE paymentId = :paymentId LIMIT 1")
+    suspend fun getReferralByPaymentId(paymentId: String): com.example.data.model.ReferralEntity?
+
     @Query("SELECT * FROM referrals WHERE referrerCode = :code ORDER BY joinedAt DESC")
     fun getReferralsByCode(code: String): Flow<List<com.example.data.model.ReferralEntity>>
+
+    @Query("SELECT * FROM referrals WHERE id = :id LIMIT 1")
+    suspend fun getReferralById(id: Long): com.example.data.model.ReferralEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReferral(referral: com.example.data.model.ReferralEntity): Long
@@ -354,7 +363,7 @@ interface ReferralDao {
     @Update
     suspend fun updateReferral(referral: com.example.data.model.ReferralEntity)
 
-    @Query("UPDATE referrals SET rewardStatus = :status, hasPurchasedPro = :hasPurchased, proSubscriptionId = :subId WHERE id = :id")
+    @Query("UPDATE referrals SET commissionStatus = :status, rewardStatus = :status, hasPurchasedPro = :hasPurchased, proSubscriptionId = :subId WHERE id = :id")
     suspend fun updateReferralReward(id: Long, status: String, hasPurchased: Boolean, subId: Long?)
 
     @Query("UPDATE referrals SET isSuspicious = :isSuspicious, auditNote = :auditNote WHERE id = :id")
@@ -366,7 +375,31 @@ interface ReferralDao {
     @Query("SELECT COUNT(*) FROM referrals WHERE hasPurchasedPro = 1")
     suspend fun getSuccessfulReferralsCount(): Int
 
-    @Query("SELECT COALESCE(SUM(rewardAmount), 0.0) FROM referrals WHERE rewardStatus = 'CREDITED'")
+    @Query("SELECT COALESCE(SUM(grossPayment), 0.0) FROM referrals WHERE hasPurchasedPro = 1 AND commissionStatus != 'REVERSED'")
+    suspend fun getTotalReferralSales(): Double
+
+    @Query("SELECT COALESCE(SUM(baseReferralCommission), 0.0) FROM referrals WHERE hasPurchasedPro = 1 AND commissionStatus != 'REVERSED'")
+    suspend fun getTotalBaseCommission(): Double
+
+    @Query("SELECT COALESCE(SUM(gatewayFee), 0.0) FROM referrals WHERE hasPurchasedPro = 1 AND commissionStatus != 'REVERSED'")
+    suspend fun getTotalFeesDeducted(): Double
+
+    @Query("SELECT COALESCE(SUM(finalReferralPayout), 0.0) FROM referrals WHERE commissionStatus = 'AVAILABLE' OR commissionStatus = 'WITHDRAWN'")
+    suspend fun getTotalFinalReferralPayout(): Double
+
+    @Query("SELECT COALESCE(SUM(ownerCommission), 0.0) FROM referrals WHERE hasPurchasedPro = 1 AND commissionStatus != 'REVERSED'")
+    suspend fun getTotalOwnerCommissionFromReferrals(): Double
+
+    @Query("SELECT COALESCE(SUM(finalReferralPayout), 0.0) FROM referrals WHERE commissionStatus = 'PENDING'")
+    suspend fun getPendingCommission(): Double
+
+    @Query("SELECT COALESCE(SUM(finalReferralPayout), 0.0) FROM referrals WHERE commissionStatus = 'AVAILABLE'")
+    suspend fun getAvailableCommission(): Double
+
+    @Query("SELECT COALESCE(SUM(finalReferralPayout), 0.0) FROM referrals WHERE commissionStatus = 'WITHDRAWN'")
+    suspend fun getWithdrawnCommission(): Double
+
+    @Query("SELECT COALESCE(SUM(finalReferralPayout), 0.0) FROM referrals WHERE commissionStatus = 'AVAILABLE' OR commissionStatus = 'CREDITED'")
     suspend fun getTotalRewardsCredited(): Double
 }
 

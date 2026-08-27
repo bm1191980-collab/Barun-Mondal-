@@ -26,7 +26,7 @@ import com.example.data.model.*
         OwnerChatEntity::class,
         ChatMessageEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class SatisfyDatabase : RoomDatabase() {

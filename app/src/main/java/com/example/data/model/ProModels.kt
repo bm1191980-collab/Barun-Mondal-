@@ -23,28 +23,41 @@ data class ProSubscriptionEntity(
     val status: String = "ACTIVE", // "ACTIVE", "EXPIRED", "CANCELLED", "REFUNDED"
     val referrerUid: String? = null,
     val referrerCode: String? = null,
-    val referralRewardAmount: Double = 4.0,
+    val baseReferralCommission: Double = 4.0,
+    val gatewayFee: Double = 0.50,
+    val finalReferralPayout: Double = 3.50,
+    val referralRewardAmount: Double = 3.50, // compatibility alias
     val ownerRevenueAmount: Double = 1.0,
-    val notes: String = "₹5 Paid → ₹4 Referrer Reward + ₹1 Owner Revenue"
+    val notes: String = "₹5.00 Gross → PG Fee ₹0.50 deducted from Referrer (₹4.00 - ₹0.50 = ₹3.50 Payout) | Owner ₹1.00 (Protected)"
 )
 
 @Entity(tableName = "referrals")
 data class ReferralEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val transactionId: String = "TXN-" + UUID.randomUUID().toString().take(10).uppercase(),
     val referralId: String = "REF-" + UUID.randomUUID().toString().take(8).uppercase(),
     val referrerUid: String,
     val referrerName: String,
     val referrerCode: String,
     val refereeUid: String,
     val refereeName: String,
+    val proPlan: String = "Pro Membership (₹5/month)",
+    val grossPayment: Double = 5.0,
+    val baseReferralCommission: Double = 4.0,
+    val gatewayFee: Double = 0.50,
+    val finalReferralPayout: Double = 3.50,
+    val ownerCommission: Double = 1.0,
+    val paymentStatus: String = "SUCCESS", // "SUCCESS", "FAILED", "REFUNDED"
+    val commissionStatus: String = "AVAILABLE", // "PENDING", "AVAILABLE", "WITHDRAWN", "REVERSED", "CANCELLED"
+    val rewardStatus: String = "AVAILABLE", // compatibility alias
+    val rewardAmount: Double = 3.50, // compatibility alias (= finalReferralPayout)
     val joinedAt: Long = System.currentTimeMillis(),
-    val hasPurchasedPro: Boolean = false,
-    val rewardStatus: String = "PENDING", // "PENDING", "CREDITED", "REVERSED", "FROZEN"
-    val rewardAmount: Double = 4.0,
+    val hasPurchasedPro: Boolean = true,
     val proSubscriptionId: Long? = null,
+    val paymentId: String = "",
     val isSuspicious: Boolean = false,
-    val auditNote: String = ""
+    val auditNote: String = "₹5.00 Gross - ₹0.50 Fee = ₹3.50 Final Referrer Payout | ₹1.00 Owner Commission"
 )
 
 @Entity(tableName = "wallets")
@@ -134,9 +147,20 @@ data class ProAnalyticsSummary(
     val proRevenue: Double = 0.0,
     val totalReferrals: Int = 0,
     val successfulProReferrals: Int = 0,
+    // 8 Exact Referral Commission Metrics for Admin Dashboard
+    val totalReferralSales: Double = 0.0,         // e.g. count * ₹5.00
+    val totalBaseCommission: Double = 0.0,        // e.g. count * ₹4.00
+    val totalFeesDeducted: Double = 0.0,          // e.g. count * ₹0.50
+    val totalFinalReferralPayout: Double = 0.0,   // e.g. count * ₹3.50
+    val ownerCommissionTotal: Double = 0.0,       // e.g. count * ₹1.00 (Protected)
+    val pendingCommission: Double = 0.0,
+    val availableCommission: Double = 0.0,
+    val withdrawnCommission: Double = 0.0,
+    // Legacy / Summary helpers
     val totalReferralRewards: Double = 0.0,
     val pendingWithdrawalsCount: Int = 0,
     val pendingWithdrawalsAmount: Double = 0.0,
     val paidWithdrawalsAmount: Double = 0.0,
     val ownerNetRevenue: Double = 0.0
 )
+

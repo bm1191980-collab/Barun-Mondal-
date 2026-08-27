@@ -78,12 +78,13 @@ class ProRepository(
         // Ensure user wallet exists
         val wallet = walletDao.getWallet(currentUserId)
         if (wallet == null) {
+            // 10 successful referrals at ₹3.50 net payout = ₹35.00 available balance
             walletDao.insertOrUpdateWallet(
                 WalletEntity(
                     userId = currentUserId,
                     userName = currentUserName,
-                    referralBalance = 40.0,
-                    totalEarned = 40.0,
+                    referralBalance = 35.0,
+                    totalEarned = 35.0,
                     totalWithdrawn = 0.0,
                     pendingWithdrawalAmount = 0.0,
                     successfulReferralsCount = 10,
@@ -98,9 +99,9 @@ class ProRepository(
                     userId = currentUserId,
                     userName = currentUserName,
                     type = "REFERRAL_REWARD",
-                    amount = 4.0,
-                    balanceAfter = 40.0,
-                    description = "Referral Reward: Friend @rahul_vlogs upgraded to Pro (₹5)",
+                    amount = 3.50,
+                    balanceAfter = 35.0,
+                    description = "Referral Reward: Friend @rahul_vlogs upgraded to Pro (₹5 Gross - ₹0.50 Fee = ₹3.50 Net)",
                     referenceId = "REF-SEED-10",
                     timestamp = System.currentTimeMillis() - (1000L * 60 * 60 * 2)
                 )
@@ -110,36 +111,54 @@ class ProRepository(
                     userId = currentUserId,
                     userName = currentUserName,
                     type = "REFERRAL_REWARD",
-                    amount = 4.0,
-                    balanceAfter = 36.0,
-                    description = "Referral Reward: Friend @priya_tech upgraded to Pro (₹5)",
+                    amount = 3.50,
+                    balanceAfter = 31.50,
+                    description = "Referral Reward: Friend @priya_tech upgraded to Pro (₹5 Gross - ₹0.50 Fee = ₹3.50 Net)",
                     referenceId = "REF-SEED-09",
                     timestamp = System.currentTimeMillis() - (1000L * 60 * 60 * 24)
                 )
             )
 
-            // Seed sample referrals
+            // Seed sample referrals (10 items matching the 10 referrals example in requirements)
             val sampleReferees = listOf(
                 "rahul_vlogs" to "Rahul Sharma",
                 "priya_tech" to "Priya Patel",
                 "arjun_cinematic" to "Arjun Das",
                 "rohit_gamer" to "Rohit Verma",
-                "ananya_art" to "Ananya Sen"
+                "ananya_art" to "Ananya Sen",
+                "vikram_travel" to "Vikram Singh",
+                "sneha_recipes" to "Sneha Roy",
+                "kabir_beats" to "Kabir Mehta",
+                "tanvi_fitness" to "Tanvi Kapoor",
+                "amit_drone" to "Amit Banerjee"
             )
             sampleReferees.forEachIndexed { index, (handle, name) ->
+                val txnId = "TXN_SEED_${1000 + index}"
+                val payId = "PAY_SEED_${2000 + index}"
                 referralDao.insertReferral(
                     ReferralEntity(
+                        transactionId = txnId,
+                        referralId = "REF-SEED-${index + 1}",
                         referrerUid = currentUserId,
                         referrerName = currentUserName,
                         referrerCode = "SATISFY100",
                         refereeUid = "user_ref_$handle",
                         refereeName = "$name (@$handle)",
+                        proPlan = "Pro Membership (₹5/mo)",
+                        grossPayment = 5.0,
+                        baseReferralCommission = 4.0,
+                        gatewayFee = 0.50,
+                        finalReferralPayout = 3.50,
+                        ownerCommission = 1.0,
+                        paymentStatus = "SUCCESS",
+                        commissionStatus = "AVAILABLE",
+                        rewardStatus = "AVAILABLE",
+                        rewardAmount = 3.50,
                         joinedAt = System.currentTimeMillis() - (1000L * 60 * 60 * 24 * (index + 1)),
                         hasPurchasedPro = true,
-                        rewardStatus = "CREDITED",
-                        rewardAmount = 4.0,
+                        paymentId = payId,
                         isSuspicious = false,
-                        auditNote = "Verified Pro ₹5 upgrade via UPI"
+                        auditNote = "Verified Pro ₹5 upgrade via UPI. ₹4 Base - ₹0.50 PG Fee = ₹3.50 Payout | ₹1 Owner"
                     )
                 )
             }
@@ -156,13 +175,16 @@ class ProRepository(
 
     /**
      * Process Pro Membership Purchase (₹5 / month)
-     * Performs strict server-side verification:
+     * Performs strict server-side verification and split calculation:
      * 1. Validates amount == ₹5.0
      * 2. Checks order/payment ID idempotency to avoid duplicates
      * 3. Activates Pro for 30 days
-     * 4. If referred by User A (Referrer), automatically credits ₹4 to User A Referral Wallet
-     * 5. Allocates ₹1 to App Owner Revenue Ledger
-     * 6. Logs immutable audit transaction
+     * 4. Self-referral prevention (cannot refer self)
+     * 5. First-purchase rule: Referral commission only paid once per referee's first Pro purchase
+     * 6. Calculates split: Gross ₹5.00 -> Base ₹4.00 - PG Fee ₹0.50 = ₹3.50 Referrer Payout | ₹1.00 Owner Revenue
+     * 7. Credits ₹3.50 to Referrer's Referral Wallet
+     * 8. Allocates ₹1.00 to App Owner Revenue Ledger
+     * 9. Logs immutable audit transaction
      */
     suspend fun purchaseProMembership(
         userId: String = currentUserId,
@@ -202,28 +224,51 @@ class ProRepository(
                         status = "FAILED",
                         subscription = null,
                         referralRewardCreated = false,
-                        referrerRewardAmount = 0.0,
+                        baseCommission = 0.0,
+                        feeDeducted = 0.0,
+                        finalReferrerPayout = 0.0,
                         ownerRevenueAmount = 0.0,
+                        commissionStatus = "FAILED",
                         errorMessage = "Payment gateway verification failed. Please try again."
                     )
                 )
                 return@withContext
             }
 
-            // 2. Resolve Referrer
+            // 2. Resolve Referrer & Apply Anti-Self-Referral Rules
             var referrerUid: String? = null
             var referrerCode: String? = null
             val cleanCode = referralCodeApplied?.trim()?.uppercase()
 
             if (!cleanCode.isNullOrBlank()) {
-                // Anti-Self Referral Check: Cannot use own referral code
-                if (cleanCode != "SATISFY100" && cleanCode != userId) {
-                    referrerCode = cleanCode
-                    referrerUid = "user_referrer_$cleanCode"
+                val userAccount = userAccountDao.getUserByUid(userId)
+                val userOwnCode = userAccount?.referralCode?.uppercase() ?: "SATISFY100"
+
+                // Anti-Self Referral Check: Cannot use own referral code or user id
+                val isSelfReferral = cleanCode == userOwnCode || cleanCode == userId.uppercase()
+                if (!isSelfReferral) {
+                    // Check if this referee has already triggered a referral commission in the past (First Purchase Only Rule)
+                    val previousReferral = referralDao.getPurchasedReferralForReferee(userId)
+                    if (previousReferral == null) {
+                        referrerCode = cleanCode
+                        referrerUid = if (cleanCode == "SATISFY100") "user_demo_1" else "user_referrer_$cleanCode"
+                    } else {
+                        Log.i(TAG, "Referral reward skipped: User $userId has already claimed first-purchase referral reward.")
+                    }
+                } else {
+                    Log.w(TAG, "Self-referral attempt blocked for user: $userId with code: $cleanCode")
                 }
             }
 
-            // 3. Create Subscription Record (30 Days Validity)
+            // 3. Compute Split via Verified Settlement Formula
+            val hasValidReferral = (referrerUid != null && referrerCode != null)
+            val settlement = PaymentGatewayService.calculateCommissionSplit(
+                grossAmount = PaymentGatewayService.PRO_MONTHLY_PRICE_INR,
+                customGatewayFee = PaymentGatewayService.STANDARD_GATEWAY_FEE_INR,
+                hasReferral = hasValidReferral
+            )
+
+            // 4. Create Subscription Record (30 Days Validity)
             val now = System.currentTimeMillis()
             val expiresAt = now + (30L * 24 * 60 * 60 * 1000)
 
@@ -231,7 +276,7 @@ class ProRepository(
                 userId = userId,
                 userName = userName,
                 userEmail = userEmail,
-                amount = PaymentGatewayService.PRO_MONTHLY_PRICE_INR,
+                amount = settlement.grossAmount,
                 paymentId = paymentId,
                 orderId = orderId,
                 paymentMethod = paymentMethod,
@@ -241,13 +286,17 @@ class ProRepository(
                 status = "ACTIVE",
                 referrerUid = referrerUid,
                 referrerCode = referrerCode,
-                referralRewardAmount = if (referrerUid != null) PaymentGatewayService.REFERRER_REWARD_INR else 0.0,
-                ownerRevenueAmount = if (referrerUid != null) PaymentGatewayService.OWNER_REVENUE_INR else PaymentGatewayService.PRO_MONTHLY_PRICE_INR
+                baseReferralCommission = settlement.baseReferralCommission,
+                gatewayFee = settlement.gatewayFee,
+                finalReferralPayout = settlement.finalReferralPayout,
+                referralRewardAmount = settlement.finalReferralPayout,
+                ownerRevenueAmount = settlement.ownerCommission,
+                notes = settlement.settlementNote
             )
 
             val subId = proSubscriptionDao.insertSubscription(subscription)
 
-            // 4. Update User Profile Pro status in DB
+            // 5. Update User Profile Pro status in DB
             userAccountDao.getUserByUid(userId)?.let { user ->
                 userAccountDao.updateUser(
                     user.copy(
@@ -257,9 +306,9 @@ class ProRepository(
                 )
             }
 
-            // 5. If Valid Referral, Credit ₹4 to Referrer's Wallet
+            // 6. If Valid Referral, Credit Final Payout (₹3.50) to Referrer's Wallet
             var referralRewardCreated = false
-            if (referrerUid != null && referrerCode != null) {
+            if (hasValidReferral && referrerUid != null && referrerCode != null) {
                 val existingWallet = walletDao.getWallet(referrerUid) ?: WalletEntity(
                     userId = referrerUid,
                     userName = "Referrer ($referrerCode)",
@@ -272,8 +321,8 @@ class ProRepository(
 
                 // Anti-Fraud check on Referrer's Wallet
                 if (!existingWallet.isFrozen) {
-                    val updatedBalance = existingWallet.referralBalance + PaymentGatewayService.REFERRER_REWARD_INR
-                    val updatedTotalEarned = existingWallet.totalEarned + PaymentGatewayService.REFERRER_REWARD_INR
+                    val updatedBalance = existingWallet.referralBalance + settlement.finalReferralPayout
+                    val updatedTotalEarned = existingWallet.totalEarned + settlement.finalReferralPayout
                     val updatedCount = existingWallet.successfulReferralsCount + 1
 
                     walletDao.insertOrUpdateWallet(
@@ -291,30 +340,41 @@ class ProRepository(
                             userId = referrerUid,
                             userName = existingWallet.userName,
                             type = "REFERRAL_REWARD",
-                            amount = PaymentGatewayService.REFERRER_REWARD_INR,
+                            amount = settlement.finalReferralPayout,
                             balanceAfter = updatedBalance,
-                            description = "Referral Reward: $userName joined & purchased Pro (₹5)",
+                            description = "Referral Reward: $userName joined Pro (₹5 Gross - ₹0.50 PG Fee = ₹3.50 Net Payout)",
                             referenceId = paymentId,
                             timestamp = now,
                             status = "COMPLETED"
                         )
                     )
 
-                    // Record Referral Event
+                    // Record Referral Event with full audit details
+                    val referralTxnId = "TXN_REF_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6).uppercase()}"
                     referralDao.insertReferral(
                         ReferralEntity(
+                            transactionId = referralTxnId,
                             referrerUid = referrerUid,
                             referrerName = existingWallet.userName,
                             referrerCode = referrerCode,
                             refereeUid = userId,
                             refereeName = userName,
+                            proPlan = "Pro Membership (₹5/mo)",
+                            grossPayment = settlement.grossAmount,
+                            baseReferralCommission = settlement.baseReferralCommission,
+                            gatewayFee = settlement.gatewayFee,
+                            finalReferralPayout = settlement.finalReferralPayout,
+                            ownerCommission = settlement.ownerCommission,
+                            paymentStatus = "SUCCESS",
+                            commissionStatus = "AVAILABLE",
+                            rewardStatus = "AVAILABLE",
+                            rewardAmount = settlement.finalReferralPayout,
                             joinedAt = now,
                             hasPurchasedPro = true,
-                            rewardStatus = "CREDITED",
-                            rewardAmount = PaymentGatewayService.REFERRER_REWARD_INR,
                             proSubscriptionId = subId,
+                            paymentId = paymentId,
                             isSuspicious = false,
-                            auditNote = "Verified Pro payment #$paymentId. ₹4 credited to wallet."
+                            auditNote = "Verified Pro Payment #$paymentId. ₹5 Gross - ₹0.50 PG Fee = ₹3.50 Final Payout | ₹1.00 Owner"
                         )
                     )
 
@@ -322,12 +382,12 @@ class ProRepository(
                 }
             }
 
-            // 6. Audit Log Entry
+            // 7. Audit Log Entry
             auditLogDao.insertLog(
                 AdminAuditLogEntity(
                     action = "PRO_SUBSCRIPTION_PURCHASED",
                     adminEmail = "system_billing",
-                    details = "User $userName ($userId) upgraded to PRO for ₹5.00 via $paymentMethod. Order: $orderId, Payment: $paymentId.",
+                    details = "User $userName ($userId) purchased PRO for ₹5.00 via $paymentMethod. Order: $orderId, Payment: $paymentId. Split: Referrer Payout=₹${settlement.finalReferralPayout}, Fee=₹${settlement.gatewayFee}, Owner=₹${settlement.ownerCommission}.",
                     timestamp = now,
                     timeFormatted = "Just now"
                 )
@@ -338,12 +398,15 @@ class ProRepository(
                     isSuccess = true,
                     paymentId = paymentId,
                     orderId = orderId,
-                    amount = PaymentGatewayService.PRO_MONTHLY_PRICE_INR,
+                    amount = settlement.grossAmount,
                     status = "SUCCESS",
                     subscription = subscription.copy(id = subId),
                     referralRewardCreated = referralRewardCreated,
-                    referrerRewardAmount = if (referralRewardCreated) PaymentGatewayService.REFERRER_REWARD_INR else 0.0,
-                    ownerRevenueAmount = if (referralRewardCreated) PaymentGatewayService.OWNER_REVENUE_INR else PaymentGatewayService.PRO_MONTHLY_PRICE_INR
+                    baseCommission = settlement.baseReferralCommission,
+                    feeDeducted = settlement.gatewayFee,
+                    finalReferrerPayout = settlement.finalReferralPayout,
+                    ownerRevenueAmount = settlement.ownerCommission,
+                    commissionStatus = "AVAILABLE"
                 )
             )
         } catch (e: Exception) {
@@ -357,8 +420,11 @@ class ProRepository(
                     status = "ERROR",
                     subscription = null,
                     referralRewardCreated = false,
-                    referrerRewardAmount = 0.0,
+                    baseCommission = 0.0,
+                    feeDeducted = 0.0,
+                    finalReferrerPayout = 0.0,
                     ownerRevenueAmount = 0.0,
+                    commissionStatus = "FAILED",
                     errorMessage = e.message ?: "An unexpected error occurred during payment processing."
                 )
             )
@@ -588,8 +654,7 @@ class ProRepository(
      * Admin: Cancel or Reverse Referral Reward on Refund
      */
     suspend fun reverseReferralReward(referralId: Long, reason: String) = withContext(Dispatchers.IO) {
-        val allRefs = referralDao.getAllReferrals().first()
-        val ref = allRefs.find { it.id == referralId } ?: return@withContext
+        val ref = referralDao.getReferralById(referralId) ?: return@withContext
 
         referralDao.updateReferralReward(
             id = referralId,
@@ -601,7 +666,8 @@ class ProRepository(
         // Deduct from referrer's wallet if available
         val wallet = walletDao.getWallet(ref.referrerUid)
         if (wallet != null) {
-            val newBalance = maxOf(0.0, wallet.referralBalance - ref.rewardAmount)
+            val deductAmount = if (ref.finalReferralPayout > 0.0) ref.finalReferralPayout else ref.rewardAmount
+            val newBalance = maxOf(0.0, wallet.referralBalance - deductAmount)
             walletDao.insertOrUpdateWallet(
                 wallet.copy(
                     referralBalance = newBalance,
@@ -614,9 +680,9 @@ class ProRepository(
                     userId = ref.referrerUid,
                     userName = wallet.userName,
                     type = "REFUND_REVERSAL",
-                    amount = -ref.rewardAmount,
+                    amount = -deductAmount,
                     balanceAfter = newBalance,
-                    description = "Reward reversed for ${ref.refereeName}: $reason",
+                    description = "Reward reversed for ${ref.refereeName}: $reason (-₹$deductAmount)",
                     referenceId = ref.referralId,
                     timestamp = System.currentTimeMillis(),
                     status = "REVERSED"
@@ -734,6 +800,15 @@ class ProRepository(
 
     /**
      * Fetch real-time Pro Analytics Summary for Admin Dashboard
+     * Computes all 8 exact Referral Commission Metrics directly from verified records:
+     * 1. Total Referral Sales (₹5 per sale)
+     * 2. Total Base Commission (₹4 per sale)
+     * 3. Total Fees Deducted (₹0.50 per sale)
+     * 4. Total Final Referral Payout (₹3.50 per sale)
+     * 5. Owner Commission (₹1.00 per sale + non-referral sales)
+     * 6. Pending Commission
+     * 7. Available Commission
+     * 8. Withdrawn Commission
      */
     suspend fun getProAnalyticsSummary(): ProAnalyticsSummary = withContext(Dispatchers.IO) {
         val totalUsers = userAccountDao.getUsersCount()
@@ -744,13 +819,22 @@ class ProRepository(
 
         val totalRefs = referralDao.getTotalReferralsCount()
         val successRefs = referralDao.getSuccessfulReferralsCount()
-        val totalRewards = referralDao.getTotalRewardsCredited()
+
+        // Exact 8 Metrics calculation
+        val totalReferralSales = referralDao.getTotalReferralSales()
+        val totalBaseCommission = referralDao.getTotalBaseCommission()
+        val totalFeesDeducted = referralDao.getTotalFeesDeducted()
+        val totalFinalReferralPayout = referralDao.getTotalFinalReferralPayout()
+        val ownerCommissionFromRefs = referralDao.getTotalOwnerCommissionFromReferrals()
+        val pendingCommission = referralDao.getPendingCommission()
+        val availableCommission = referralDao.getAvailableCommission()
+        val withdrawnCommission = referralDao.getWithdrawnCommission()
 
         val pendingWithCount = withdrawalRequestDao.getPendingCount()
         val pendingWithAmount = withdrawalRequestDao.getPendingAmount()
         val paidWithAmount = withdrawalRequestDao.getPaidAmount()
 
-        val ownerRevenue = maxOf(0.0, proRevenue - totalRewards)
+        val totalOwnerCommission = ownerCommissionFromRefs + maxOf(0.0, proRevenue - totalReferralSales)
 
         return@withContext ProAnalyticsSummary(
             totalUsers = totalUsers,
@@ -760,11 +844,19 @@ class ProRepository(
             proRevenue = proRevenue,
             totalReferrals = totalRefs,
             successfulProReferrals = successRefs,
-            totalReferralRewards = totalRewards,
+            totalReferralSales = totalReferralSales,
+            totalBaseCommission = totalBaseCommission,
+            totalFeesDeducted = totalFeesDeducted,
+            totalFinalReferralPayout = totalFinalReferralPayout,
+            ownerCommissionTotal = totalOwnerCommission,
+            pendingCommission = pendingCommission,
+            availableCommission = availableCommission,
+            withdrawnCommission = withdrawnCommission,
+            totalReferralRewards = totalFinalReferralPayout,
             pendingWithdrawalsCount = pendingWithCount,
             pendingWithdrawalsAmount = pendingWithAmount,
             paidWithdrawalsAmount = paidWithAmount,
-            ownerNetRevenue = ownerRevenue
+            ownerNetRevenue = totalOwnerCommission
         )
     }
 

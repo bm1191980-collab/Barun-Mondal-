@@ -244,7 +244,7 @@ fun WalletScreen(
                                 modifier = Modifier.size(22.dp)
                             )
                             Text(
-                                text = "Invite Friends & Earn ₹4 Each",
+                                text = "Invite Friends & Earn Commission",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
@@ -253,7 +253,7 @@ fun WalletScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "When a friend registers using your referral code and purchases PRO for ₹5, you instantly receive ₹4 in your Referral Wallet!",
+                            text = "When a friend joins with your code and buys ₹5 PRO, you get ₹4.00 base commission (₹3.50 net after ₹0.50 standard payment processing fee).",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 16.sp

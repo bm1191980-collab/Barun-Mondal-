@@ -163,7 +163,7 @@ fun AdminProTabContent(
                             modifier = Modifier.padding(top = 2.dp)
                         ) {
                             Text(
-                                text = "Referred by: ${sub.referrerCode} (₹4 Reward Credited + ₹1 Owner)",
+                                text = "Referred by: ${sub.referrerCode} (₹3.50 Referrer Payout | ₹0.50 PG Fee | ₹1.00 Owner)",
                                 fontSize = 11.sp,
                                 color = Color(0xFFA5B4FC),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -182,9 +182,18 @@ fun AdminReferralsTabContent(
     onToggleSuspicious: (Long, Boolean, String) -> Unit,
     onReverseReward: (Long, String) -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
-    val totalRewards = remember(referrals) { referrals.filter { it.rewardStatus == "CREDITED" }.sumOf { it.rewardAmount } }
-    val successfulCount = remember(referrals) { referrals.count { it.hasPurchasedPro } }
+    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
+
+    // 8 Required Admin Dashboard Metrics
+    val successfulReferrals = remember(referrals) { referrals.filter { it.hasPurchasedPro && it.commissionStatus != "REVERSED" } }
+    val totalReferralSales = remember(successfulReferrals) { successfulReferrals.sumOf { it.grossPayment } }
+    val totalBaseCommission = remember(successfulReferrals) { successfulReferrals.sumOf { it.baseReferralCommission } }
+    val totalFeesDeducted = remember(successfulReferrals) { successfulReferrals.sumOf { it.gatewayFee } }
+    val totalFinalReferralPayout = remember(referrals) { referrals.filter { it.commissionStatus == "AVAILABLE" || it.commissionStatus == "WITHDRAWN" }.sumOf { it.finalReferralPayout } }
+    val ownerCommissionTotal = remember(successfulReferrals) { successfulReferrals.sumOf { it.ownerCommission } }
+    val pendingCommission = remember(referrals) { referrals.filter { it.commissionStatus == "PENDING" }.sumOf { it.finalReferralPayout } }
+    val availableCommission = remember(referrals) { referrals.filter { it.commissionStatus == "AVAILABLE" }.sumOf { it.finalReferralPayout } }
+    val withdrawnCommission = remember(referrals) { referrals.filter { it.commissionStatus == "WITHDRAWN" }.sumOf { it.finalReferralPayout } }
 
     LazyColumn(
         modifier = Modifier
@@ -193,45 +202,123 @@ fun AdminReferralsTabContent(
         contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Top 8 Metrics Grid
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "PRO REFERRAL COMMISSION & REVENUE ANALYTICS",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = 0.5.sp
+                )
+
+                // Row 1: Sales & Base Commission
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Total Referrals", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${referrals.size}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("Pro Upgrades: $successfulCount", fontSize = 10.sp, color = Color(0xFF10B981))
-                    }
+                    AdminMetricTile(
+                        title = "Total Referral Sales",
+                        value = "₹${String.format(Locale.US, "%.2f", totalReferralSales)}",
+                        subtext = "${successfulReferrals.size} sales × ₹5.00",
+                        accentColor = Color(0xFF6366F1),
+                        modifier = Modifier.weight(1f)
+                    )
+                    AdminMetricTile(
+                        title = "Total Base Commission",
+                        value = "₹${String.format(Locale.US, "%.2f", totalBaseCommission)}",
+                        subtext = "₹4.00 per eligible sale",
+                        accentColor = Color(0xFF3B82F6),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                // Row 2: Fees Deducted & Final Referral Payout
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Rewards Distributed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("₹${totalRewards.toInt()}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = SatisfyGold)
-                        Text("₹4 per upgrade", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    AdminMetricTile(
+                        title = "Total Fees Deducted",
+                        value = "-₹${String.format(Locale.US, "%.2f", totalFeesDeducted)}",
+                        subtext = "₹0.50 PG fee / referral",
+                        accentColor = Color(0xFFEF4444),
+                        modifier = Modifier.weight(1f)
+                    )
+                    AdminMetricTile(
+                        title = "Total Final Referral Payout",
+                        value = "₹${String.format(Locale.US, "%.2f", totalFinalReferralPayout)}",
+                        subtext = "₹4.00 - ₹0.50 = ₹3.50 net",
+                        accentColor = SatisfyGold,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Row 3: Owner Commission & Available Commission
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AdminMetricTile(
+                        title = "Owner Commission",
+                        value = "₹${String.format(Locale.US, "%.2f", ownerCommissionTotal)}",
+                        subtext = "₹1.00 (Protected)",
+                        accentColor = Color(0xFF10B981),
+                        modifier = Modifier.weight(1f)
+                    )
+                    AdminMetricTile(
+                        title = "Available Commission",
+                        value = "₹${String.format(Locale.US, "%.2f", availableCommission)}",
+                        subtext = "In referrers' wallets",
+                        accentColor = Color(0xFF10B981),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Row 4: Pending & Withdrawn
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AdminMetricTile(
+                        title = "Pending Commission",
+                        value = "₹${String.format(Locale.US, "%.2f", pendingCommission)}",
+                        subtext = "Cooling / Unsettled",
+                        accentColor = Color(0xFFF59E0B),
+                        modifier = Modifier.weight(1f)
+                    )
+                    AdminMetricTile(
+                        title = "Withdrawn Commission",
+                        value = "₹${String.format(Locale.US, "%.2f", withdrawnCommission)}",
+                        subtext = "Paid out to users",
+                        accentColor = Color(0xFF8B5CF6),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
 
         item {
-            Text(
-                text = "REFERRALS AUDIT LIST",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "REFERRAL TRANSACTIONS AUDIT TRAIL",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${referrals.size} Records",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         if (referrals.isEmpty()) {
@@ -256,9 +343,11 @@ fun AdminReferralsTabContent(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
+                border = if (ref.isSuspicious) BorderStroke(1.dp, Color(0xFFEF4444)) else null
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Header: Txn ID & Status Badges
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -266,59 +355,181 @@ fun AdminReferralsTabContent(
                     ) {
                         Column {
                             Text(
-                                text = "Referrer: ${ref.referrerName} (${ref.referrerCode})",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                text = ref.transactionId,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "Referee: ${ref.refereeName}",
-                                fontSize = 12.sp,
+                                text = ref.proPlan,
+                                fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = when (ref.rewardStatus) {
-                                "CREDITED" -> Color(0xFF065F46)
-                                "REVERSED" -> Color(0xFF7F1D1D)
-                                else -> Color(0xFF92400E)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // Payment Status
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (ref.paymentStatus == "SUCCESS") Color(0xFF065F46) else Color(0xFF7F1D1D)
+                            ) {
+                                Text(
+                                    text = ref.paymentStatus,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
                             }
-                        ) {
+
+                            // Commission Status
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = when (ref.commissionStatus) {
+                                    "AVAILABLE" -> Color(0xFF047857)
+                                    "WITHDRAWN" -> Color(0xFF6D28D9)
+                                    "REVERSED" -> Color(0xFF991B1B)
+                                    "PENDING" -> Color(0xFFB45309)
+                                    else -> Color(0xFF374151)
+                                }
+                            ) {
+                                Text(
+                                    text = ref.commissionStatus,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.5.dp)
+
+                    // User Details
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Referrer", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = ref.rewardStatus,
+                                text = "${ref.referrerName} (${ref.referrerCode})",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text("ID: ${ref.referrerUid}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Referred User (Referee)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = ref.refereeName,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text("ID: ${ref.refereeUid}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    // Financial Ledger Breakdown Box
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.background,
+                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Gross Payment:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("₹${String.format(Locale.US, "%.2f", ref.grossPayment)}", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Referrer Base Commission:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("₹${String.format(Locale.US, "%.2f", ref.baseReferralCommission)}", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Applicable PG / Platform Fee:", fontSize = 11.sp, color = Color(0xFFEF4444))
+                                Text("-₹${String.format(Locale.US, "%.2f", ref.gatewayFee)}", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFFEF4444))
+                            }
+                            Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Referrer Final Payout:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SatisfyGold)
+                                Text("₹${String.format(Locale.US, "%.2f", ref.finalReferralPayout)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SatisfyGold)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("App Owner Commission:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                Text("₹${String.format(Locale.US, "%.2f", ref.ownerCommission)} (Protected)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                            }
+                        }
+                    }
+
+                    // Audit Info & Date
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = dateFormat.format(Date(ref.joinedAt)),
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (ref.paymentId.isNotBlank()) {
+                            Text(
+                                text = "Ref: ${ref.paymentId}",
                                 fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    Text(
-                        text = "Joined: ${dateFormat.format(Date(ref.joinedAt))} • Reward: ₹${ref.rewardAmount.toInt()}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (ref.auditNote.isNotBlank()) {
+                        Text(
+                            text = "Note: ${ref.auditNote}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
+                    // Action Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (ref.rewardStatus == "CREDITED") {
+                        if (ref.commissionStatus == "AVAILABLE") {
                             TextButton(
-                                onClick = { onReverseReward(ref.id, "Admin manual reward reversal") },
+                                onClick = { onReverseReward(ref.id, "Admin manual referral refund/reversal") },
                                 colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444))
                             ) {
                                 Icon(Icons.Filled.Undo, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Reverse Reward", fontSize = 11.sp)
+                                Text("Reverse Commission", fontSize = 11.sp)
                             }
                         }
 
                         TextButton(
-                            onClick = { onToggleSuspicious(ref.id, !ref.isSuspicious, if (!ref.isSuspicious) "Suspicious referral pattern" else "") },
+                            onClick = { onToggleSuspicious(ref.id, !ref.isSuspicious, if (!ref.isSuspicious) "Suspicious referral pattern flagged by admin" else "") },
                             colors = ButtonDefaults.textButtonColors(contentColor = if (ref.isSuspicious) Color(0xFF10B981) else Color(0xFFF59E0B))
                         ) {
                             Icon(if (ref.isSuspicious) Icons.Filled.Check else Icons.Filled.Flag, contentDescription = null, modifier = Modifier.size(14.dp))
@@ -328,6 +539,44 @@ fun AdminReferralsTabContent(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AdminMetricTile(
+    title: String,
+    value: String,
+    subtext: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+            Text(
+                text = value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = accentColor
+            )
+            Text(
+                text = subtext,
+                fontSize = 9.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
