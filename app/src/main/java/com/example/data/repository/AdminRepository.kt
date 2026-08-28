@@ -494,11 +494,12 @@ class AdminRepository(
         targetAudienceLabel: String,
         actionUrl: String
     ): Long {
+        val totalDbUsers = userAccountDao.getUsersCount()
         val count = when (targetTopic) {
-            "all_users" -> 14850
-            "creators" -> 1240
-            "featured_creators" -> 350
-            else -> 2400
+            "all_users" -> totalDbUsers
+            "creators" -> userAccountDao.getUsersByRoleDirect("creator").size
+            "featured_creators" -> userAccountDao.getUsersByRoleDirect("creator").take(5).size
+            else -> totalDbUsers
         }
 
         val logEntity = PushNotificationLogEntity(
@@ -554,149 +555,20 @@ class AdminRepository(
         // Ensure primary root superadmin always exists
         ensureSuperAdminInDb()
 
-        if (userAccountDao.getUsersCount() <= 1) {
-            val seedUsers = listOf(
-                UserAccountEntity(
-                    uid = PRIMARY_SUPERADMIN_UID,
-                    name = PRIMARY_SUPERADMIN_NAME,
-                    email = PRIMARY_SUPERADMIN_EMAIL,
-                    avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
-                    role = "superadmin",
-                    postsCount = 12,
-                    reportsCount = 0,
-                    joinedDate = "Aug 2026",
-                    lastActive = "Online Now"
-                ),
-                UserAccountEntity(
-                    uid = "mod_user_002",
-                    name = "Tanzim Moderation",
-                    email = "moderator@satisfy.app",
-                    avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-                    role = "moderator",
-                    postsCount = 4,
-                    reportsCount = 0,
-                    joinedDate = "Feb 2026",
-                    lastActive = "10 mins ago"
-                ),
-                UserAccountEntity(
-                    uid = "creator_satisfy_official",
-                    name = "Satisfy Studios",
-                    email = "studios@satisfy.app",
-                    avatarUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150",
-                    role = "creator",
-                    postsCount = 48,
-                    reportsCount = 0,
-                    joinedDate = "Jan 2026",
-                    lastActive = "1 hour ago"
-                ),
-                UserAccountEntity(
-                    uid = "creator_bengal_exp",
-                    name = "Bengal Explorer",
-                    email = "bengal.explorer@gmail.com",
-                    avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-                    role = "creator",
-                    postsCount = 22,
-                    reportsCount = 1,
-                    joinedDate = "Mar 2026",
-                    lastActive = "3 hours ago"
-                ),
-                UserAccountEntity(
-                    uid = "user_spammer_005",
-                    name = "SpamBot_ClickMe",
-                    email = "spambot99@fakemail.com",
-                    avatarUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
-                    role = "user",
-                    isBanned = true,
-                    banReason = "Repeated commercial spam links in video comments",
-                    postsCount = 1,
-                    reportsCount = 6,
-                    joinedDate = "Jul 2026",
-                    lastActive = "Banned"
-                ),
-                UserAccountEntity(
-                    uid = "user_rahim_006",
-                    name = "Rahim Ahmed",
-                    email = "rahim.bd@gmail.com",
-                    avatarUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
-                    role = "user",
-                    postsCount = 3,
-                    reportsCount = 0,
-                    joinedDate = "May 2026",
-                    lastActive = "Yesterday"
-                )
-            )
-            userAccountDao.insertAllUsers(seedUsers)
-        }
-
-        if (reportDao.getPendingCount() == 0 && reportDao.getResolvedCount() == 0) {
-            val seedReports = listOf(
-                ReportEntity(
-                    targetId = 2,
-                    targetType = "POST",
-                    targetTitle = "Unexplored Bangladesh - 4K Drone Film",
-                    reporterName = "Ayesha Siddiqua",
-                    reportedUser = "Bengal Explorer",
-                    reason = "Copyright Infringement",
-                    details = "Audio track used in the opening 30 seconds matches copyrighted background score.",
-                    timeAgo = "2 hours ago",
-                    priority = "HIGH",
-                    status = "PENDING"
-                ),
-                ReportEntity(
-                    targetId = 5,
-                    targetType = "USER",
-                    targetTitle = "SpamBot_ClickMe profile comments",
-                    reporterName = "Sadia Rahman",
-                    reportedUser = "SpamBot_ClickMe",
-                    reason = "Spam / Misleading",
-                    details = "User posting phishing links across multiple culinary shorts.",
-                    timeAgo = "1 day ago",
-                    priority = "HIGH",
-                    status = "RESOLVED",
-                    actionTaken = "User banned & comments wiped"
-                ),
-                ReportEntity(
-                    targetId = 3,
-                    targetType = "POST",
-                    targetTitle = "I Built a Full AI System in 24 Hours",
-                    reporterName = "DevCritic",
-                    reportedUser = "CyberDev Lab",
-                    reason = "Inappropriate / Misleading Title",
-                    details = "Title claims 24 hours but pre-built libraries were utilized.",
-                    timeAgo = "3 days ago",
-                    priority = "LOW",
-                    status = "DISMISSED",
-                    actionTaken = "Reviewed and found compliant with developer showcase guidelines"
-                )
-            )
-            reportDao.insertAllReports(seedReports)
-        }
-
-        if (pushNotificationDao.getCount() == 0) {
-            val seedPushes = listOf(
-                PushNotificationLogEntity(
-                    title = "🔥 New 4K Drone Film Just Dropped!",
-                    body = "Explore the magical beauty of Sajek & Sylhet in cinematic 4K on Satisfy.",
-                    targetTopic = "all_users",
-                    targetAudienceLabel = "All Users",
-                    deliveredCount = 14200,
-                    sentTimeFormatted = "2 hours ago",
-                    status = "DELIVERED"
-                ),
-                PushNotificationLogEntity(
-                    title = "🌟 Creator Studio Update v2.0",
-                    body = "Direct gallery video upload & custom thumbnails are now live for all creators.",
-                    targetTopic = "creators",
-                    targetAudienceLabel = "Verified Creators",
-                    deliveredCount = 1180,
-                    sentTimeFormatted = "1 day ago",
-                    status = "DELIVERED"
-                )
-            )
-            pushNotificationDao.insertAllNotifications(seedPushes)
+        // Clean out any legacy demo reports or fake users
+        try {
+            val allUsers = userAccountDao.getAllUsersList()
+            allUsers.filter { it.uid.startsWith("mod_user_") || it.uid.startsWith("creator_") || it.uid.startsWith("user_spammer_") || it.uid.startsWith("user_rahim_") }.forEach {
+                userAccountDao.deleteUser(it)
+            }
+        } catch (e: Exception) {
+            // Ignore if helper not present
         }
 
         // Initialize default app settings if not set
-        appSettingsDao.saveSettings(AppSystemSettingsEntity())
+        if (appSettingsDao.getSettingsDirect() == null) {
+            appSettingsDao.saveSettings(AppSystemSettingsEntity())
+        }
     }
 }
+

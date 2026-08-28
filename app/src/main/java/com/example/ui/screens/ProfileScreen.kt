@@ -485,14 +485,14 @@ fun ProfileScreen(
                         )
                         AnalyticsCard(
                             title = "Total Views",
-                            value = "${totalViews + 1200} views",
+                            value = "$totalViews views",
                             icon = Icons.Filled.Visibility,
                             color = SatisfyBlue,
                             modifier = Modifier.weight(1.2f)
                         )
                         AnalyticsCard(
-                            title = "Satisfaction",
-                            value = "99.4%",
+                            title = "Total Likes",
+                            value = "$totalLikes likes",
                             icon = Icons.Filled.Favorite,
                             color = SatisfyGold,
                             modifier = Modifier.weight(1.1f)

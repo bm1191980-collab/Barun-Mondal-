@@ -72,96 +72,25 @@ class ProRepository(
     }
 
     /**
-     * Seed initial demo state and referral ledger for realistic testing
+     * Ensure user wallet exists with real initial balance
      */
     private suspend fun seedInitialProAndReferralData() = withContext(Dispatchers.IO) {
-        // Ensure user wallet exists
+        // Ensure user wallet exists with real clean state
         val wallet = walletDao.getWallet(currentUserId)
         if (wallet == null) {
-            // 10 successful referrals at ₹3.50 net payout = ₹35.00 available balance
             walletDao.insertOrUpdateWallet(
                 WalletEntity(
                     userId = currentUserId,
                     userName = currentUserName,
-                    referralBalance = 35.0,
-                    totalEarned = 35.0,
+                    referralBalance = 0.0,
+                    totalEarned = 0.0,
                     totalWithdrawn = 0.0,
                     pendingWithdrawalAmount = 0.0,
-                    successfulReferralsCount = 10,
+                    successfulReferralsCount = 0,
                     isFrozen = false,
                     updatedAt = System.currentTimeMillis()
                 )
             )
-
-            // Seed sample past transactions
-            walletTransactionDao.insertTransaction(
-                WalletTransactionEntity(
-                    userId = currentUserId,
-                    userName = currentUserName,
-                    type = "REFERRAL_REWARD",
-                    amount = 3.50,
-                    balanceAfter = 35.0,
-                    description = "Referral Reward: Friend @rahul_vlogs upgraded to Pro (₹5 Gross - ₹0.50 Fee = ₹3.50 Net)",
-                    referenceId = "REF-SEED-10",
-                    timestamp = System.currentTimeMillis() - (1000L * 60 * 60 * 2)
-                )
-            )
-            walletTransactionDao.insertTransaction(
-                WalletTransactionEntity(
-                    userId = currentUserId,
-                    userName = currentUserName,
-                    type = "REFERRAL_REWARD",
-                    amount = 3.50,
-                    balanceAfter = 31.50,
-                    description = "Referral Reward: Friend @priya_tech upgraded to Pro (₹5 Gross - ₹0.50 Fee = ₹3.50 Net)",
-                    referenceId = "REF-SEED-09",
-                    timestamp = System.currentTimeMillis() - (1000L * 60 * 60 * 24)
-                )
-            )
-
-            // Seed sample referrals (10 items matching the 10 referrals example in requirements)
-            val sampleReferees = listOf(
-                "rahul_vlogs" to "Rahul Sharma",
-                "priya_tech" to "Priya Patel",
-                "arjun_cinematic" to "Arjun Das",
-                "rohit_gamer" to "Rohit Verma",
-                "ananya_art" to "Ananya Sen",
-                "vikram_travel" to "Vikram Singh",
-                "sneha_recipes" to "Sneha Roy",
-                "kabir_beats" to "Kabir Mehta",
-                "tanvi_fitness" to "Tanvi Kapoor",
-                "amit_drone" to "Amit Banerjee"
-            )
-            sampleReferees.forEachIndexed { index, (handle, name) ->
-                val txnId = "TXN_SEED_${1000 + index}"
-                val payId = "PAY_SEED_${2000 + index}"
-                referralDao.insertReferral(
-                    ReferralEntity(
-                        transactionId = txnId,
-                        referralId = "REF-SEED-${index + 1}",
-                        referrerUid = currentUserId,
-                        referrerName = currentUserName,
-                        referrerCode = "SATISFY100",
-                        refereeUid = "user_ref_$handle",
-                        refereeName = "$name (@$handle)",
-                        proPlan = "Pro Membership (₹5/mo)",
-                        grossPayment = 5.0,
-                        baseReferralCommission = 4.0,
-                        gatewayFee = 0.50,
-                        finalReferralPayout = 3.50,
-                        ownerCommission = 1.0,
-                        paymentStatus = "SUCCESS",
-                        commissionStatus = "AVAILABLE",
-                        rewardStatus = "AVAILABLE",
-                        rewardAmount = 3.50,
-                        joinedAt = System.currentTimeMillis() - (1000L * 60 * 60 * 24 * (index + 1)),
-                        hasPurchasedPro = true,
-                        paymentId = payId,
-                        isSuspicious = false,
-                        auditNote = "Verified Pro ₹5 upgrade via UPI. ₹4 Base - ₹0.50 PG Fee = ₹3.50 Payout | ₹1 Owner"
-                    )
-                )
-            }
         }
     }
 

@@ -180,6 +180,9 @@ interface UserAccountDao {
     @Query("SELECT * FROM users ORDER BY joinedDate DESC")
     fun getAllUsers(): Flow<List<com.example.data.model.UserAccountEntity>>
 
+    @Query("SELECT * FROM users")
+    suspend fun getAllUsersList(): List<com.example.data.model.UserAccountEntity>
+
     @Query("SELECT * FROM users WHERE uid = :uid")
     suspend fun getUserByUid(uid: String): com.example.data.model.UserAccountEntity?
 
@@ -209,6 +212,9 @@ interface UserAccountDao {
 
     @Query("SELECT COUNT(*) FROM users")
     suspend fun getUsersCount(): Int
+
+    @Query("SELECT * FROM users WHERE LOWER(role) = LOWER(:role)")
+    suspend fun getUsersByRoleDirect(role: String): List<com.example.data.model.UserAccountEntity>
 }
 
 @Dao
@@ -263,6 +269,9 @@ interface PushNotificationDao {
 interface AppSettingsDao {
     @Query("SELECT * FROM app_settings WHERE id = 1")
     fun getSettings(): Flow<com.example.data.model.AppSystemSettingsEntity?>
+
+    @Query("SELECT * FROM app_settings WHERE id = 1")
+    suspend fun getSettingsDirect(): com.example.data.model.AppSystemSettingsEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveSettings(settings: com.example.data.model.AppSystemSettingsEntity)
@@ -626,6 +635,24 @@ interface UserInteractionDao {
 
     @Query("DELETE FROM user_subscriptions WHERE userId = :userId AND channelName = :channelName")
     suspend fun deleteSubscription(userId: String, channelName: String)
+
+    @Query("SELECT COUNT(DISTINCT userId) FROM user_subscriptions WHERE channelName = :channelName")
+    fun getSubscriberCountForChannel(channelName: String): Flow<Int>
+
+    @Query("SELECT COUNT(DISTINCT userId) FROM user_subscriptions WHERE channelName = :channelName")
+    suspend fun getSubscriberCountForChannelDirect(channelName: String): Int
+
+    @Query("SELECT COUNT(DISTINCT userId) FROM user_subscriptions")
+    suspend fun getTotalSubscriptionsCount(): Int
+
+    @Query("DELETE FROM user_subscriptions WHERE userId = :userId")
+    suspend fun deleteSubscriptionsForUser(userId: String)
+
+    @Query("DELETE FROM user_likes WHERE userId = :userId")
+    suspend fun deleteLikesForUser(userId: String)
+
+    @Query("DELETE FROM user_saves WHERE userId = :userId")
+    suspend fun deleteSavesForUser(userId: String)
 
     // User created posts
     @Query("SELECT * FROM posts WHERE creatorUid = :userId OR (isUserCreated = 1 AND creatorUid = :userId) ORDER BY id DESC")

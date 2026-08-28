@@ -269,6 +269,20 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         // Load saved user profile
         userProfile.value = loadUserProfileFromPrefs()
 
+        // Reactively keep active userProfile subscriber count in sync with Room database
+        viewModelScope.launch {
+            userProfile.flatMapLatest { profile ->
+                repository.getSubscriberCountFlow(profile.name)
+            }.collectLatest { count ->
+                val formatted = formatSubscribers(count.toLong())
+                if (userProfile.value.subscriberCount != formatted) {
+                    val updated = userProfile.value.copy(subscriberCount = formatted)
+                    userProfile.value = updated
+                    saveUserProfileToPrefs(updated)
+                }
+            }
+        }
+
         // Multi-Account state
         savedAccounts = repository.allSavedAccounts.stateIn(
             viewModelScope,
@@ -436,11 +450,16 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             null
         )
 
+        val activeProfileSubscribersFlow = userProfile.flatMapLatest { profile ->
+            repository.getSubscriberCountFlow(profile.name).map { it.toLong() }
+        }
+
         creatorAnalyticsSummary = combine(
             allPosts,
             userCreatedPosts,
-            userProfile
-        ) { all, created, profile ->
+            userProfile,
+            activeProfileSubscribersFlow
+        ) { all, created, profile, realSubCount ->
             val userPosts = if (created.isNotEmpty()) {
                 created
             } else {
@@ -454,20 +473,6 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             val videoViews = videos.sumOf { it.viewCount }
             val videoWatchSecs = videos.sumOf { it.watchTimeSeconds }
 
-            // Extract numeric subscriber count if possible, fallback to 1250L
-            val rawSubText = profile.subscriberCount.replace("subscribers", "").replace("subscriber", "").trim()
-            val subCount = when {
-                rawSubText.endsWith("K", ignoreCase = true) -> {
-                    val num = rawSubText.dropLast(1).toDoubleOrNull() ?: 1.2
-                    (num * 1000).toLong()
-                }
-                rawSubText.endsWith("M", ignoreCase = true) -> {
-                    val num = rawSubText.dropLast(1).toDoubleOrNull() ?: 1.0
-                    (num * 1000000).toLong()
-                }
-                else -> rawSubText.toLongOrNull() ?: 1250L
-            }
-
             CreatorAnalyticsSummary(
                 totalShortsUploaded = shorts.size,
                 totalShortsViews = shortsViews,
@@ -475,7 +480,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                 totalVideosUploaded = videos.size,
                 totalVideoViews = videoViews,
                 totalVideoWatchTimeSeconds = videoWatchSecs,
-                totalSubscribers = subCount,
+                totalSubscribers = realSubCount,
                 individualShorts = shorts,
                 individualVideos = videos
             )
@@ -564,10 +569,17 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             repository.incrementViewCount(post.id)
             repository.recordUserWatchHistory(userProfile.value.uid, post.id)
             loadComments(post.id)
-            // Refresh active post with updated view count
+            // Refresh active post with updated view count and real subscriber count
             val updated = repository.getPostById(post.id)
+            val realSubs = repository.getSubscriberCountDirect(post.channelName)
+            val isSubscribed = repository.isSubscribedToChannel(userProfile.value.uid, post.channelName)
             if (updated != null && playerState.value.activePost?.id == post.id) {
-                playerState.value = playerState.value.copy(activePost = updated)
+                playerState.value = playerState.value.copy(
+                    activePost = updated.copy(
+                        subscriberCount = formatSubscribers(realSubs.toLong()),
+                        isSubscribed = isSubscribed
+                    )
+                )
             }
         }
     }
@@ -673,18 +685,27 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.toggleUserSubscribe(userProfile.value.uid, channelName)
             val newSub = !currentSubscribed
+            val updatedSubCount = repository.getSubscriberCountDirect(channelName)
+            val formattedSubCount = formatSubscribers(updatedSubCount.toLong())
+
             val active = playerState.value.activePost
-            if (active != null && active.channelName == channelName) {
+            if (active != null && active.channelName.equals(channelName, ignoreCase = true)) {
                 val updated = repository.getPostById(active.id)
                 if (updated != null) {
-                    playerState.value = playerState.value.copy(activePost = updated)
+                    playerState.value = playerState.value.copy(
+                        activePost = updated.copy(
+                            isSubscribed = newSub,
+                            subscriberCount = formattedSubCount
+                        )
+                    )
                 }
             }
             // Update selected public creator if viewing
             val currentPub = selectedPublicCreator.value
             if (currentPub != null && currentPub.channelName.equals(channelName, ignoreCase = true)) {
                 selectedPublicCreator.value = currentPub.copy(
-                    isSubscribed = newSub
+                    isSubscribed = newSub,
+                    subscriberCount = formattedSubCount
                 )
             }
         }
@@ -1201,8 +1222,8 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             avatarUrl = prefs.getString("user_avatar", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200") ?: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
             bannerUrl = prefs.getString("user_banner", "") ?: "",
             link = prefs.getString("user_link", "satisfy.app/@satisfy_creator") ?: "satisfy.app/@satisfy_creator",
-            subscriberCount = prefs.getString("user_subscriber_count", "1.2K subscribers") ?: "1.2K subscribers",
-            isPro = prefs.getBoolean("user_is_pro", true),
+            subscriberCount = prefs.getString("user_subscriber_count", "0 subscribers") ?: "0 subscribers",
+            isPro = prefs.getBoolean("user_is_pro", false),
             proExpiresAt = prefs.getLong("user_pro_expires", 0L).let { if (it > 0) it else null },
             referralCode = prefs.getString("user_referral_code", "SATISFY100") ?: "SATISFY100",
             referredByCode = prefs.getString("user_referred_by_code", null)
@@ -1296,6 +1317,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     fun removeSavedAccount(uid: String) {
         viewModelScope.launch {
             repository.deleteAccount(uid)
+            repository.deleteUserInteractions(uid)
             val accounts = repository.allSavedAccounts.firstOrNull() ?: emptyList()
             if (userProfile.value.uid == uid) {
                 val nextAccount = accounts.firstOrNull { it.uid != uid }
@@ -1309,8 +1331,8 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                         email = "creator@satisfy.app",
                         bio = "Welcome to my Satisfy channel!",
                         avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
-                        subscriberCount = "1.2K subscribers",
-                        isPro = true,
+                        subscriberCount = "0 subscribers",
+                        isPro = false,
                         referralCode = "SATISFY100",
                         isActive = true
                     )
@@ -1435,21 +1457,17 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                 else -> "Official creator channel for $channelName. Sharing relaxing, satisfying, and high-quality creations for the Satisfy community."
             }
 
-            val subCount = when {
-                isOwn -> currentUser.subscriberCount
-                samplePost != null && samplePost.subscriberCount.isNotBlank() -> samplePost.subscriberCount
-                pageEntity != null -> "${pageEntity.followersCount} followers"
-                else -> "1.2K subscribers"
-            }
+            val realSubs = repository.getSubscriberCountDirect(channelName)
+            val subCount = formatSubscribers(realSubs.toLong())
 
             val verified = when {
                 isOwn -> true
                 samplePost != null -> samplePost.isVerified
                 pageEntity != null -> pageEntity.isVerified
-                else -> true
+                else -> false
             }
 
-            val isSubscribed = samplePost?.isSubscribed ?: false
+            val isSubscribed = repository.isSubscribedToChannel(currentUser.uid, channelName)
 
             selectedPublicCreator.value = PublicCreatorProfile(
                 channelName = channelName,
@@ -1465,7 +1483,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                 pageId = pageId,
                 totalVideos = publicVideos.size,
                 totalShorts = publicShorts.size,
-                totalViews = if (totalViews > 0) totalViews else (publicVideos.size + publicShorts.size) * 12400L + 8500L,
+                totalViews = totalViews,
                 publicVideos = publicVideos,
                 publicShorts = publicShorts
             )
@@ -1512,10 +1530,10 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                 avatarUrl = avatarPath,
                 bannerUrl = bannerPath,
                 websiteLink = link.trim(),
-                followersCount = 1200L,
+                followersCount = 0L,
                 isVerified = false,
-                totalWatchTimeSeconds = 18600L, // initial seed watch time ~5.2 hours
-                totalViews = 1420L
+                totalWatchTimeSeconds = 0L,
+                totalViews = 0L
             )
             val id = repository.createPage(newPage)
             val created = newPage.copy(id = id)
