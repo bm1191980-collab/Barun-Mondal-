@@ -8,8 +8,10 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,15 +25,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -42,6 +46,8 @@ import com.example.data.model.PostEntity
 import com.example.data.model.PostType
 import com.example.data.service.SatisfyVideoEngine
 import com.example.ui.theme.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -52,6 +58,7 @@ fun ShortsScreen(
     onToggleSubscribe: (String, Boolean) -> Unit,
     onOpenComments: (PostEntity) -> Unit,
     onUploadShortClick: () -> Unit,
+    onCreatorClick: (channelName: String, creatorUid: String, pageId: Long?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     if (shorts.isEmpty()) {
@@ -72,139 +79,62 @@ fun ShortsScreen(
                 Text(
                     text = "No Shorts available yet",
                     color = Color.White,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onUploadShortClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed)
+                    colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
+                    shape = RoundedCornerShape(20.dp)
                 ) {
-                    Text("Create First Short")
+                    Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Create First Short", fontWeight = FontWeight.Bold)
                 }
             }
         }
         return
     }
 
-    var currentIndex by remember { mutableIntStateOf(0) }
-    val currentShort = shorts.getOrElse(currentIndex.coerceIn(0, shorts.lastIndex)) { shorts.first() }
-    val context = LocalContext.current
-    var isPlaying by remember { mutableStateOf(true) }
-    var isBuffering by remember { mutableStateOf(true) }
-    var shortsError by remember { mutableStateOf<String?>(null) }
-    var isCaptionExpanded by remember { mutableStateOf(false) }
-
-    // Vinyl spinning rotation
-    val infiniteTransition = rememberInfiniteTransition(label = "vinyl_rotate")
-    val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "vinyl_anim"
-    )
-
-    // Shorts ExoPlayer instance with looping
-    val exoPlayer = remember(currentShort.id, currentShort.mediaUrl) {
-        SatisfyVideoEngine.createExoPlayer(context).apply {
-            val mediaItem = SatisfyVideoEngine.createMediaItem(currentShort.mediaUrl, PostType.SHORT)
-            setMediaItem(mediaItem)
-            repeatMode = Player.REPEAT_MODE_ONE
-            playWhenReady = true
-            prepare()
-        }
-    }
-
-    DisposableEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                isBuffering = state == Player.STATE_BUFFERING
-                if (state == Player.STATE_READY) {
-                    shortsError = null
-                }
-            }
-            override fun onIsPlayingChanged(playing: Boolean) {
-                isPlaying = playing
-            }
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                isBuffering = false
-                shortsError = SatisfyVideoEngine.parsePlaybackException(error)
-            }
-        }
-        exoPlayer.addListener(listener)
-
-        onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.stop()
-            exoPlayer.release()
-        }
-    }
-
-    LaunchedEffect(isPlaying) {
-        exoPlayer.playWhenReady = isPlaying
-    }
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { shorts.size })
+    val coroutineScope = rememberCoroutineScope()
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(shorts.size) {
-                var totalDrag = 0f
-                detectVerticalDragGestures(
-                    onDragStart = { totalDrag = 0f },
-                    onDragEnd = {
-                        if (totalDrag < -60f && currentIndex < shorts.size - 1) {
-                            currentIndex++
-                        } else if (totalDrag > 60f && currentIndex > 0) {
-                            currentIndex--
-                        }
-                    },
-                    onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        totalDrag += dragAmount
-                    }
-                )
-            }
-            .clickable { isPlaying = !isPlaying }
     ) {
-        // Real Video Surface for Shorts
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                }
-            },
-            update = { playerView ->
-                playerView.player = exoPlayer
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        // Vertical Pager for smooth, native Shorts scrolling
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 0 // Don't pre-render adjacent players to save memory & prevent multiple audio
+        ) { page ->
+            val short = shorts[page]
+            val isCurrentPage = page == pagerState.currentPage
+            val nextShort = if (page < shorts.lastIndex) shorts[page + 1] else null
 
-        // Buffering Indicator
-        if (isBuffering) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    color = SatisfyRed,
-                    strokeWidth = 3.dp,
-                    modifier = Modifier.size(40.dp)
-                )
-            }
+            ShortPageItem(
+                short = short,
+                isCurrentPage = isCurrentPage,
+                nextShort = nextShort,
+                onToggleLike = { onToggleLike(short) },
+                onToggleDislike = { onToggleDislike(short) },
+                onToggleSubscribe = { onToggleSubscribe(short.channelName, short.isSubscribed) },
+                onOpenComments = { onOpenComments(short) },
+                onCreatorClick = { onCreatorClick(short.channelName, short.creatorUid, short.pageId) },
+                onAutoAdvanceNext = {
+                    if (page < shorts.lastIndex) {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(page + 1)
+                        }
+                    }
+                }
+            )
         }
 
-        // Top Gradient Shadow & Header
+        // Top Gradient Shadow & Header (Fixed over Pager)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -229,7 +159,7 @@ fun ShortsScreen(
                         imageVector = Icons.Filled.Bolt,
                         contentDescription = "Satisfy Shorts",
                         tint = SatisfyRed,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(26.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -240,37 +170,295 @@ fun ShortsScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onUploadShortClick) {
+                    IconButton(
+                        onClick = onUploadShortClick,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = Color.Black.copy(alpha = 0.4f),
+                            contentColor = Color.White
+                        )
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.Videocam,
-                            contentDescription = "Create Short",
-                            tint = Color.White
+                            contentDescription = "Create Short"
                         )
                     }
                 }
             }
         }
+    }
+}
 
-        // Bottom Gradient Shadow for readability
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(260.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f), Color.Black.copy(alpha = 0.95f))
-                    )
+@OptIn(UnstableApi::class)
+@Composable
+private fun ShortPageItem(
+    short: PostEntity,
+    isCurrentPage: Boolean,
+    nextShort: PostEntity?,
+    onToggleLike: () -> Unit,
+    onToggleDislike: () -> Unit,
+    onToggleSubscribe: () -> Unit,
+    onOpenComments: () -> Unit,
+    onCreatorClick: () -> Unit,
+    onAutoAdvanceNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var isUserPaused by remember { mutableStateOf(false) }
+    var isBuffering by remember { mutableStateOf(true) }
+    var playbackError by remember { mutableStateOf<String?>(null) }
+    var isCaptionExpanded by remember { mutableStateOf(false) }
+
+    // 5-Second Countdown State when video finishes
+    var showNextCountdown by remember { mutableStateOf(false) }
+    var countdownSeconds by remember { mutableIntStateOf(5) }
+
+    // Vinyl spinning rotation animation
+    val infiniteTransition = rememberInfiniteTransition(label = "vinyl_rotate")
+    val rotationAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "vinyl_anim"
+    )
+
+    // Only create ExoPlayer instance if this page is CURRENTLY active
+    val exoPlayer: ExoPlayer? = remember(isCurrentPage, short.id, short.mediaUrl) {
+        if (isCurrentPage) {
+            SatisfyVideoEngine.createExoPlayer(context).apply {
+                val mediaItem = SatisfyVideoEngine.createMediaItem(short.mediaUrl, PostType.SHORT)
+                setMediaItem(mediaItem)
+                repeatMode = Player.REPEAT_MODE_OFF // Off so STATE_ENDED triggers 5-second countdown!
+                playWhenReady = !isUserPaused
+                prepare()
+            }
+        } else {
+            null
+        }
+    }
+
+    // Attach Player Listener
+    DisposableEffect(exoPlayer) {
+        if (exoPlayer == null) return@DisposableEffect onDispose {}
+
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                isBuffering = state == Player.STATE_BUFFERING
+                if (state == Player.STATE_READY) {
+                    playbackError = null
+                    showNextCountdown = false
+                } else if (state == Player.STATE_ENDED) {
+                    // Video finished: trigger auto-advance countdown if next video exists
+                    if (nextShort != null) {
+                        showNextCountdown = true
+                        countdownSeconds = 5
+                    } else {
+                        // Last video in playlist: loop cleanly
+                        exoPlayer.seekTo(0)
+                        exoPlayer.play()
+                    }
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                isBuffering = false
+                playbackError = SatisfyVideoEngine.parsePlaybackException(error)
+            }
+        }
+
+        exoPlayer.addListener(listener)
+
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.stop()
+            exoPlayer.release()
+        }
+    }
+
+    // Lifecycle Observer: Pause when app in background, resume when in foreground
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        if (exoPlayer == null) return@DisposableEffect onDispose {}
+
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    exoPlayer.playWhenReady = false
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    if (!isUserPaused && !showNextCountdown) {
+                        exoPlayer.playWhenReady = true
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // 5-Second Countdown Timer Coroutine
+    LaunchedEffect(showNextCountdown) {
+        if (showNextCountdown && nextShort != null) {
+            countdownSeconds = 5
+            while (countdownSeconds > 0 && showNextCountdown) {
+                delay(1000)
+                countdownSeconds--
+            }
+            if (showNextCountdown && countdownSeconds == 0) {
+                showNextCountdown = false
+                onAutoAdvanceNext()
+            }
+        }
+    }
+
+    // Sync playWhenReady with isUserPaused
+    LaunchedEffect(isUserPaused, showNextCountdown) {
+        exoPlayer?.let { player ->
+            if (showNextCountdown) {
+                player.playWhenReady = false
+            } else {
+                player.playWhenReady = !isUserPaused
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                if (showNextCountdown) {
+                    showNextCountdown = false
+                    exoPlayer?.seekTo(0)
+                    exoPlayer?.play()
+                } else {
+                    isUserPaused = !isUserPaused
+                }
+            }
+    ) {
+        // Video Surface (or Thumbnail Placeholder if inactive)
+        if (isCurrentPage && exoPlayer != null) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    }
+                },
+                update = { playerView ->
+                    playerView.player = exoPlayer
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // High quality thumbnail while scrolling or unselected
+            AsyncImage(
+                model = if (short.thumbnailUrl.isNotBlank()) short.thumbnailUrl else short.mediaUrl,
+                contentDescription = short.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // Buffering Indicator
+        if (isCurrentPage && isBuffering && !showNextCountdown && playbackError == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.25f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = SatisfyRed,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(44.dp)
                 )
-        )
+            }
+        }
 
-        // Center Play / Pause Indicator (shows when paused)
-        if (!isPlaying) {
+        // Playback Error with Retry Button
+        if (playbackError != null && !showNextCountdown) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.8f))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SatisfyDarkSurface),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth(0.85f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.WifiOff,
+                            contentDescription = null,
+                            tint = SatisfyRed,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Playback Error",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = playbackError ?: "Unable to stream video",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                playbackError = null
+                                isBuffering = true
+                                exoPlayer?.let { player ->
+                                    val mediaItem = SatisfyVideoEngine.createMediaItem(short.mediaUrl, PostType.SHORT)
+                                    player.setMediaItem(mediaItem)
+                                    player.prepare()
+                                    player.play()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Retry Playback", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Paused Indicator Overlay
+        if (isCurrentPage && isUserPaused && !showNextCountdown && playbackError == null) {
             Box(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.6f))
+                    .background(Color.Black.copy(alpha = 0.65f))
                     .align(Alignment.Center),
                 contentAlignment = Alignment.Center
             ) {
@@ -283,6 +471,124 @@ fun ShortsScreen(
             }
         }
 
+        // 5-Second Countdown Next Video Overlay
+        if (showNextCountdown && nextShort != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SatisfyDarkSurface),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth(0.9f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Countdown Ring
+                        Box(contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(
+                                progress = { countdownSeconds / 5f },
+                                color = SatisfyRed,
+                                trackColor = Color.White.copy(alpha = 0.2f),
+                                strokeWidth = 4.dp,
+                                modifier = Modifier.size(68.dp)
+                            )
+                            Text(
+                                text = "$countdownSeconds",
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "Up Next",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SatisfyRed
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = nextShort.title,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "@${nextShort.channelName}",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Controls: Play Now vs Replay
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    showNextCountdown = false
+                                    exoPlayer?.seekTo(0)
+                                    exoPlayer?.play()
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(20.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                            ) {
+                                Icon(imageVector = Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Replay", fontSize = 12.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    showNextCountdown = false
+                                    onAutoAdvanceNext()
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(20.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed)
+                            ) {
+                                Icon(imageVector = Icons.Filled.SkipNext, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Play Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom Gradient Shadow for overlay readability
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(280.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.95f))
+                    )
+                )
+        )
+
         // Right Side Action Rail
         Column(
             modifier = Modifier
@@ -294,13 +600,13 @@ fun ShortsScreen(
             // Like Button
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clickable { onToggleLike(currentShort) }
+                modifier = Modifier.clickable { onToggleLike() }
             ) {
                 Box(
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(if (currentShort.isLiked) SatisfyRed else Color.Black.copy(alpha = 0.5f)),
+                        .background(if (short.isLiked) SatisfyRed else Color.Black.copy(alpha = 0.5f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -312,7 +618,7 @@ fun ShortsScreen(
                 }
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = "${currentShort.likeCount}",
+                    text = "${short.likeCount}",
                     color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
@@ -322,13 +628,13 @@ fun ShortsScreen(
             // Dislike Button
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clickable { onToggleDislike(currentShort) }
+                modifier = Modifier.clickable { onToggleDislike() }
             ) {
                 Box(
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(if (currentShort.isDisliked) SatisfyRed else Color.Black.copy(alpha = 0.5f)),
+                        .background(if (short.isDisliked) SatisfyRed else Color.Black.copy(alpha = 0.5f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -345,7 +651,7 @@ fun ShortsScreen(
             // Comments Button
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clickable { onOpenComments(currentShort) }
+                modifier = Modifier.clickable { onOpenComments() }
             ) {
                 Box(
                     modifier = Modifier
@@ -363,7 +669,7 @@ fun ShortsScreen(
                 }
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = "${currentShort.commentCount}",
+                    text = "${short.commentCount}",
                     color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
@@ -378,7 +684,7 @@ fun ShortsScreen(
                         action = Intent.ACTION_SEND
                         putExtra(
                             Intent.EXTRA_TEXT,
-                            "Check out this Satisfy Short: '${currentShort.title}' https://satisfy.social/shorts/${currentShort.id}"
+                            "Check out this Satisfy Short: '${short.title}' https://satisfy.social/shorts/${short.id}"
                         )
                         type = "text/plain"
                     }
@@ -410,7 +716,7 @@ fun ShortsScreen(
                     .size(40.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF222222))
-                    .rotate(if (isPlaying) rotationAngle else 0f),
+                    .rotate(if (!isUserPaused && !showNextCountdown) rotationAngle else 0f),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
@@ -433,17 +739,20 @@ fun ShortsScreen(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Clickable Avatar to Creator Profile
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(SatisfyDarkSurfaceVariant)
+                        .clickable { onCreatorClick() }
                 ) {
-                    if (currentShort.channelAvatar.isNotBlank()) {
+                    if (short.channelAvatar.isNotBlank()) {
                         AsyncImage(
-                            model = currentShort.channelAvatar,
-                            contentDescription = currentShort.channelName,
-                            modifier = Modifier.fillMaxSize()
+                            model = short.channelAvatar,
+                            contentDescription = short.channelName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
                     }
                 }
@@ -451,19 +760,20 @@ fun ShortsScreen(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Text(
-                    text = "@${currentShort.channelName.replace(" ", "")}",
+                    text = "@${short.channelName.replace(" ", "")}",
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
-                    color = Color.White
+                    color = Color.White,
+                    modifier = Modifier.clickable { onCreatorClick() }
                 )
 
                 Spacer(modifier = Modifier.width(10.dp))
 
                 // Subscribe Button
                 Button(
-                    onClick = { onToggleSubscribe(currentShort.channelName, currentShort.isSubscribed) },
+                    onClick = onToggleSubscribe,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (currentShort.isSubscribed) Color.White.copy(alpha = 0.2f) else SatisfyRed,
+                        containerColor = if (short.isSubscribed) Color.White.copy(alpha = 0.2f) else SatisfyRed,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(16.dp),
@@ -471,7 +781,7 @@ fun ShortsScreen(
                     modifier = Modifier.height(28.dp)
                 ) {
                     Text(
-                        text = if (currentShort.isSubscribed) "Subscribed" else "Subscribe",
+                        text = if (short.isSubscribed) "Subscribed" else "Subscribe",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -482,7 +792,7 @@ fun ShortsScreen(
 
             // Caption Text
             Text(
-                text = currentShort.title,
+                text = short.title,
                 fontSize = 13.sp,
                 color = Color.White,
                 maxLines = if (isCaptionExpanded) 6 else 2,
@@ -502,7 +812,7 @@ fun ShortsScreen(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Original Audio - ${currentShort.channelName}",
+                    text = "Original Audio - ${short.channelName}",
                     fontSize = 11.sp,
                     color = Color.White.copy(alpha = 0.9f)
                 )

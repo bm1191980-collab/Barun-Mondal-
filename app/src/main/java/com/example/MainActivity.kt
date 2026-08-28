@@ -98,18 +98,28 @@ class MainActivity : ComponentActivity() {
             val monetizationEligibility by viewModel.monetizationEligibility.collectAsStateWithLifecycle()
             val userMonetizationApplication by viewModel.userMonetizationApplication.collectAsStateWithLifecycle()
             val allMonetizationApplications by viewModel.allMonetizationApplications.collectAsStateWithLifecycle()
+            val selectedPublicCreator by viewModel.selectedPublicCreator.collectAsStateWithLifecycle()
+            val savedAccounts by viewModel.savedAccounts.collectAsStateWithLifecycle()
 
             var showCommentSheetForPost by remember { mutableStateOf<PostEntity?>(null) }
             var showAdminAuthDialog by remember { mutableStateOf(false) }
             var showCreatePageDialog by remember { mutableStateOf(false) }
             var showSettingsDialog by remember { mutableStateOf(false) }
+            var showSwitchProfileDialog by remember { mutableStateOf(false) }
+            var showAddAccountDialog by remember { mutableStateOf(false) }
 
             // Handle back navigation
-            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES || showCommentSheetForPost != null) {
-                if (showCommentSheetForPost != null) {
+            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES || currentTab == ScreenTab.PUBLIC_CREATOR_PROFILE || showCommentSheetForPost != null || showSwitchProfileDialog || showAddAccountDialog) {
+                if (showAddAccountDialog) {
+                    showAddAccountDialog = false
+                } else if (showSwitchProfileDialog) {
+                    showSwitchProfileDialog = false
+                } else if (showCommentSheetForPost != null) {
                     showCommentSheetForPost = null
                 } else if (playerState.isExpanded) {
                     viewModel.minimizePlayer()
+                } else if (currentTab == ScreenTab.PUBLIC_CREATOR_PROFILE) {
+                    viewModel.currentTab.value = viewModel.previousScreenTab
                 } else if (currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES) {
                     viewModel.currentTab.value = ScreenTab.PROFILE
                 } else if (currentTab == ScreenTab.SEARCH) {
@@ -186,7 +196,10 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onToggleLike = { post -> viewModel.toggleLike(post) },
                                         onToggleSave = { post -> viewModel.toggleSave(post) },
-                                        onDeletePost = { post -> viewModel.deletePost(post) }
+                                        onDeletePost = { post -> viewModel.deletePost(post) },
+                                        onCreatorClick = { channelName, creatorUid, pageId ->
+                                            viewModel.openPublicCreatorProfile(channelName, creatorUid, pageId)
+                                        }
                                     )
                                 }
                                 ScreenTab.SHORTS -> {
@@ -202,6 +215,9 @@ class MainActivity : ComponentActivity() {
                                         onUploadShortClick = {
                                             viewModel.uploadType.value = PostType.SHORT
                                             viewModel.currentTab.value = ScreenTab.CREATE
+                                        },
+                                        onCreatorClick = { channelName, creatorUid, pageId ->
+                                            viewModel.openPublicCreatorProfile(channelName, creatorUid, pageId)
                                         }
                                     )
                                 }
@@ -229,6 +245,7 @@ class MainActivity : ComponentActivity() {
                                 ScreenTab.PHOTOS -> {
                                     PhotoFeedScreen(
                                         photos = photoPosts,
+                                        userPosts = userCreatedPosts.filter { it.type == PostType.PHOTO },
                                         onToggleLike = { photo -> viewModel.toggleLike(photo) },
                                         onToggleSave = { photo -> viewModel.toggleSave(photo) },
                                         onToggleSubscribe = { ch, isSub -> viewModel.toggleSubscribe(ch, isSub) },
@@ -239,6 +256,9 @@ class MainActivity : ComponentActivity() {
                                         onUploadPhotoClick = {
                                             viewModel.uploadType.value = PostType.PHOTO
                                             viewModel.currentTab.value = ScreenTab.CREATE
+                                        },
+                                        onCreatorClick = { channelName, creatorUid, pageId ->
+                                            viewModel.openPublicCreatorProfile(channelName, creatorUid, pageId)
                                         }
                                     )
                                 }
@@ -271,6 +291,7 @@ class MainActivity : ComponentActivity() {
                                         onOpenCreatePage = { showCreatePageDialog = true },
                                         onOpenPageDetails = { page -> viewModel.openPageDetails(page) },
                                         onOpenSettings = { showSettingsDialog = true },
+                                        onOpenSwitchProfile = { showSwitchProfileDialog = true },
                                         onSelectPost = { post ->
                                             if (post.type == PostType.SHORT) {
                                                 viewModel.currentTab.value = ScreenTab.SHORTS
@@ -456,6 +477,24 @@ class MainActivity : ComponentActivity() {
                                         onBack = { viewModel.currentTab.value = ScreenTab.PROFILE }
                                     )
                                 }
+                                ScreenTab.PUBLIC_CREATOR_PROFILE -> {
+                                    val publicProfile = selectedPublicCreator
+                                    if (publicProfile != null) {
+                                        PublicCreatorProfileScreen(
+                                            profile = publicProfile,
+                                            onBack = { viewModel.currentTab.value = viewModel.previousScreenTab },
+                                            onVideoClick = { video -> viewModel.openVideo(video, expanded = true) },
+                                            onToggleSubscribe = { ch, isSub -> viewModel.toggleSubscribe(ch, isSub) }
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("Creator profile not found")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -501,6 +540,10 @@ class MainActivity : ComponentActivity() {
                                 onMinimize = { viewModel.minimizePlayer() },
                                 onClose = { viewModel.closePlayer() },
                                 onToggleControls = { viewModel.toggleControlsVisibility() },
+                                onToggleFullscreen = { viewModel.toggleFullscreen() },
+                                onOpenCreatorProfile = { channelName, creatorUid, pageId ->
+                                    viewModel.openPublicCreatorProfile(channelName, creatorUid, pageId)
+                                },
                                 onToggleLike = { p -> viewModel.toggleLike(p) },
                                 onToggleDislike = { p -> viewModel.toggleDislike(p) },
                                 onToggleSave = { p -> viewModel.toggleSave(p) },
@@ -561,7 +604,47 @@ class MainActivity : ComponentActivity() {
                                     showAdminAuthDialog = true
                                 }
                             },
+                            onOpenSwitchProfile = { showSwitchProfileDialog = true },
                             isAdmin = isAdminAuthenticated
+                        )
+                    }
+
+                    // Switch Profile Dialog
+                    if (showSwitchProfileDialog) {
+                        SwitchProfileDialog(
+                            currentProfile = userProfile,
+                            savedAccounts = savedAccounts,
+                            onSelectAccount = { account ->
+                                viewModel.switchAccount(account)
+                                showSwitchProfileDialog = false
+                            },
+                            onOpenAddAccount = {
+                                showSwitchProfileDialog = false
+                                showAddAccountDialog = true
+                            },
+                            onRemoveAccount = { uid ->
+                                viewModel.removeSavedAccount(uid)
+                            },
+                            onDismiss = { showSwitchProfileDialog = false }
+                        )
+                    }
+
+                    // Add Account Dialog
+                    if (showAddAccountDialog) {
+                        AddAccountDialog(
+                            onDismiss = { showAddAccountDialog = false },
+                            onSaveAccount = { name, handle, email, bio, avatarUrl, bannerUrl, isPro ->
+                                viewModel.addNewAccount(
+                                    name = name,
+                                    handle = handle,
+                                    email = email,
+                                    bio = bio,
+                                    avatarUrl = avatarUrl,
+                                    bannerUrl = bannerUrl,
+                                    isPro = isPro
+                                )
+                                showAddAccountDialog = false
+                            }
                         )
                     }
 

@@ -255,7 +255,7 @@ fun UploadScreen(
                         val label = when (type) {
                             PostType.VIDEO -> "🎬 Video"
                             PostType.SHORT -> "⚡ Short"
-                            PostType.PHOTO -> "📸 Photo"
+                            PostType.PHOTO -> "📝 Post"
                         }
                         Box(
                             modifier = Modifier
@@ -973,7 +973,7 @@ fun UploadScreen(
                             text = when (selectedType) {
                                 PostType.VIDEO -> "Publish Video"
                                 PostType.SHORT -> "Publish Short"
-                                PostType.PHOTO -> "Share Photo Post"
+                                PostType.PHOTO -> "Publish Post"
                             },
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp

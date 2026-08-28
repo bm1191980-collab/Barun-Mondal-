@@ -5,6 +5,7 @@ import android.widget.FrameLayout
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -58,6 +60,9 @@ fun InteractiveVideoPlayer(
     onMinimize: () -> Unit,
     onClose: () -> Unit,
     onToggleControls: () -> Unit,
+    onToggleFullscreen: () -> Unit = {},
+    nextVideo: PostEntity? = null,
+    onPlayNextVideo: (PostEntity) -> Unit = {},
     onWatchTimeTick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -76,6 +81,10 @@ fun InteractiveVideoPlayer(
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showQualityDialog by remember { mutableStateOf(false) }
     var retryCount by remember { mutableIntStateOf(0) }
+
+    // Auto-next 5s countdown states
+    var isAutoNextCancelled by remember(post.id) { mutableStateOf(false) }
+    var autoNextCountdownSeconds by remember(post.id) { mutableIntStateOf(5) }
 
     // Double-tap visual indicators
     var doubleTapSeekLeft by remember { mutableStateOf(false) }
@@ -117,6 +126,7 @@ fun InteractiveVideoPlayer(
                     Player.STATE_ENDED -> {
                         isBuffering = false
                         isPlaybackEnded = true
+                        controlsVisible = true
                     }
                     Player.STATE_IDLE -> {
                         isBuffering = false
@@ -141,7 +151,15 @@ fun InteractiveVideoPlayer(
 
     // Sync play/pause with playerState
     LaunchedEffect(playerState.isPlaying) {
-        exoPlayer.playWhenReady = playerState.isPlaying
+        if (playerState.isPlaying) {
+            if (isPlaybackEnded) {
+                exoPlayer.seekTo(0L)
+                isPlaybackEnded = false
+            }
+            exoPlayer.play()
+        } else {
+            exoPlayer.pause()
+        }
     }
 
     // Sync volume/mute with playerState
@@ -201,11 +219,33 @@ fun InteractiveVideoPlayer(
         }
     }
 
-    Box(
-        modifier = modifier
+    // 5-Second Auto-Next Countdown Loop
+    LaunchedEffect(isPlaybackEnded, isAutoNextCancelled, nextVideo?.id, post.id) {
+        if (isPlaybackEnded && !isAutoNextCancelled && nextVideo != null) {
+            autoNextCountdownSeconds = 5
+            while (autoNextCountdownSeconds > 0 && !isAutoNextCancelled && isPlaybackEnded) {
+                delay(1000L)
+                autoNextCountdownSeconds--
+            }
+            if (autoNextCountdownSeconds <= 0 && !isAutoNextCancelled && isPlaybackEnded) {
+                onPlayNextVideo(nextVideo)
+            }
+        }
+    }
+
+    val boxModifier = if (playerState.isFullscreen) {
+        modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    } else {
+        modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
             .background(Color.Black)
+    }
+
+    Box(
+        modifier = boxModifier
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
@@ -318,7 +358,7 @@ fun InteractiveVideoPlayer(
         }
 
         // Buffering Indicator
-        if (isBuffering && playerError == null) {
+        if (isBuffering && playerError == null && !isPlaybackEnded) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -401,61 +441,214 @@ fun InteractiveVideoPlayer(
             }
         }
 
-        // Live HD / Quality Badge (Always visible on top right or with controls)
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = Color.Black.copy(alpha = 0.7f),
-                modifier = Modifier.clickable { showQualityDialog = true }
-            ) {
-                Text(
-                    text = playerState.quality,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SatisfyGold,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(6.dp))
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = if (exoPlayer.isPlaying) SatisfyRed else Color.DarkGray
-            ) {
-                Text(
-                    text = if (exoPlayer.isPlaying) "PLAYING" else "PAUSED",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color.White,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        }
-
-        // Top Left Minimize Button
-        IconButton(
-            onClick = onMinimize,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(10.dp)
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.6f))
-        ) {
-            Icon(
-                imageVector = Icons.Filled.KeyboardArrowDown,
-                contentDescription = "Minimize Player",
-                tint = Color.White
-            )
-        }
-
-        // Full Controls Overlay
+        // 5-Second Auto Next Video Countdown Overlay
         AnimatedVisibility(
-            visible = controlsVisible && playerError == null,
+            visible = isPlaybackEnded && !isAutoNextCancelled && nextVideo != null,
+            enter = fadeIn(tween(250)) + scaleIn(initialScale = 0.96f),
+            exit = fadeOut(tween(200)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.88f))
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                ) {
+                    // Header with countdown badge
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(SatisfyRed.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                progress = { autoNextCountdownSeconds / 5f },
+                                modifier = Modifier.fillMaxSize(),
+                                color = SatisfyRed,
+                                strokeWidth = 3.dp,
+                                trackColor = Color.White.copy(alpha = 0.2f)
+                            )
+                            Text(
+                                text = "$autoNextCountdownSeconds",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Next video in ${autoNextCountdownSeconds}s",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Up Next on Satisfy",
+                                color = SatisfyGold,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Next Video Card Preview
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.1f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                        modifier = Modifier
+                            .fillMaxWidth(if (playerState.isFullscreen) 0.65f else 0.95f)
+                            .clickable {
+                                isAutoNextCancelled = true
+                                onPlayNextVideo(nextVideo!!)
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Thumbnail
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 84.dp, height = 50.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.DarkGray)
+                            ) {
+                                if (nextVideo!!.thumbnailUrl.isNotBlank()) {
+                                    AsyncImage(
+                                        model = nextVideo.thumbnailUrl,
+                                        contentDescription = nextVideo.title,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                // Duration badge
+                                Surface(
+                                    shape = RoundedCornerShape(3.dp),
+                                    color = Color.Black.copy(alpha = 0.8f),
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(2.dp)
+                                ) {
+                                    Text(
+                                        text = nextVideo.duration,
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = nextVideo!!.title,
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${nextVideo.channelName} • ${nextVideo.views}",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 11.sp,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Action Buttons (Play Now, Cancel / Stay, Replay)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Play Now Button
+                        Button(
+                            onClick = {
+                                isAutoNextCancelled = true
+                                onPlayNextVideo(nextVideo!!)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
+                            shape = RoundedCornerShape(20.dp),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayArrow,
+                                contentDescription = "Play Now",
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Play Now", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Cancel Button
+                        OutlinedButton(
+                            onClick = {
+                                isAutoNextCancelled = true
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Cancel Auto Next",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
+
+                        // Replay Current Video
+                        IconButton(
+                            onClick = {
+                                isAutoNextCancelled = true
+                                exoPlayer.seekTo(0L)
+                                exoPlayer.play()
+                                isPlaybackEnded = false
+                            },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.15f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Replay,
+                                contentDescription = "Replay current video",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Full Controls Overlay (Play/Pause, Rewind/Forward, Scrub bar, Top/Bottom toolbars)
+        AnimatedVisibility(
+            visible = controlsVisible && playerError == null && !(isPlaybackEnded && !isAutoNextCancelled && nextVideo != null),
             enter = fadeIn(animationSpec = tween(200)),
             exit = fadeOut(animationSpec = tween(200)),
             modifier = Modifier.fillMaxSize()
@@ -465,6 +658,122 @@ fun InteractiveVideoPlayer(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.45f))
             ) {
+                // Top Header Row
+                if (playerState.isFullscreen) {
+                    // Fullscreen Top Bar with Title, Channel, HD badge, and Exit
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopStart)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Black.copy(alpha = 0.85f), Color.Transparent)
+                                )
+                            )
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onToggleFullscreen,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Exit Fullscreen",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = post.title,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${post.channelName} • ${post.views}",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color.Black.copy(alpha = 0.6f),
+                            modifier = Modifier.clickable { showQualityDialog = true }
+                        ) {
+                            Text(
+                                text = playerState.quality,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SatisfyGold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                } else {
+                    // Normal Top Controls (Minimize & Status)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopStart)
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onMinimize,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.6f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.KeyboardArrowDown,
+                                contentDescription = "Minimize Player",
+                                tint = Color.White
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color.Black.copy(alpha = 0.7f),
+                                modifier = Modifier.clickable { showQualityDialog = true }
+                            ) {
+                                Text(
+                                    text = playerState.quality,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SatisfyGold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (exoPlayer.isPlaying) SatisfyRed else Color.DarkGray
+                            ) {
+                                Text(
+                                    text = if (exoPlayer.isPlaying) "PLAYING" else "PAUSED",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Center Play/Pause & 10s Rewind/Forward Controls
                 Row(
                     modifier = Modifier.align(Alignment.Center),
@@ -615,6 +924,19 @@ fun InteractiveVideoPlayer(
                                     color = SatisfyGold,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // Fullscreen / Exit Fullscreen Button
+                            IconButton(
+                                onClick = onToggleFullscreen,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (playerState.isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                                    contentDescription = if (playerState.isFullscreen) "Exit Fullscreen" else "Enter Fullscreen",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }

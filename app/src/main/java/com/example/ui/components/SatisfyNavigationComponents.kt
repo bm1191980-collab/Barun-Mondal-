@@ -257,11 +257,11 @@ fun SatisfyBottomNavigation(
             onClick = { onTabSelected(ScreenTab.PHOTOS) },
             icon = {
                 Icon(
-                    imageVector = if (currentTab == ScreenTab.PHOTOS) Icons.Filled.PhotoLibrary else Icons.Outlined.PhotoLibrary,
-                    contentDescription = "Photos"
+                    imageVector = if (currentTab == ScreenTab.PHOTOS) Icons.Filled.DynamicFeed else Icons.Outlined.DynamicFeed,
+                    contentDescription = "Posts"
                 )
             },
-            label = { Text("Community", fontSize = 11.sp, fontWeight = if (currentTab == ScreenTab.PHOTOS) FontWeight.Bold else FontWeight.Normal) },
+            label = { Text("Posts", fontSize = 11.sp, fontWeight = if (currentTab == ScreenTab.PHOTOS) FontWeight.Bold else FontWeight.Normal) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = MaterialTheme.colorScheme.primary,
                 selectedTextColor = MaterialTheme.colorScheme.primary,

@@ -153,14 +153,23 @@ interface CommentDao {
 
 @Dao
 interface WatchHistoryDao {
+    @Query("SELECT p.* FROM posts p INNER JOIN watch_history h ON p.id = h.postId WHERE h.userId = :userId ORDER BY h.watchedAt DESC")
+    fun getWatchHistoryForUser(userId: String): Flow<List<PostEntity>>
+
     @Query("SELECT p.* FROM posts p INNER JOIN watch_history h ON p.id = h.postId ORDER BY h.watchedAt DESC")
     fun getWatchHistory(): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM watch_history WHERE postId = :postId AND userId = :userId ORDER BY watchedAt DESC LIMIT 1")
+    suspend fun getWatchProgressForPostAndUser(postId: Long, userId: String): WatchHistoryEntity?
 
     @Query("SELECT * FROM watch_history WHERE postId = :postId ORDER BY watchedAt DESC LIMIT 1")
     suspend fun getWatchProgressForPost(postId: Long): WatchHistoryEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun recordWatch(history: WatchHistoryEntity)
+
+    @Query("DELETE FROM watch_history WHERE userId = :userId")
+    suspend fun clearHistoryForUser(userId: String)
 
     @Query("DELETE FROM watch_history")
     suspend fun clearHistory()
@@ -272,6 +281,9 @@ interface AuditLogDao {
 interface CreatorPageDao {
     @Query("SELECT * FROM creator_pages ORDER BY id DESC")
     fun getAllPages(): Flow<List<com.example.data.model.CreatorPageEntity>>
+
+    @Query("SELECT * FROM creator_pages WHERE creatorUid = :userId ORDER BY id DESC")
+    fun getPagesForUser(userId: String): Flow<List<com.example.data.model.CreatorPageEntity>>
 
     @Query("SELECT * FROM creator_pages WHERE id = :id")
     suspend fun getPageById(id: Long): com.example.data.model.CreatorPageEntity?
@@ -528,5 +540,97 @@ interface MonetizationDao {
     @Query("SELECT COUNT(*) FROM monetization_applications WHERE status = 'PENDING'")
     suspend fun getPendingApplicationsCount(): Int
 }
+
+@Dao
+interface SavedAccountDao {
+    @Query("SELECT * FROM saved_accounts ORDER BY lastActiveTimestamp DESC")
+    fun getAllAccounts(): Flow<List<com.example.data.model.SavedAccountEntity>>
+
+    @Query("SELECT * FROM saved_accounts WHERE uid = :uid LIMIT 1")
+    suspend fun getAccountByUid(uid: String): com.example.data.model.SavedAccountEntity?
+
+    @Query("SELECT * FROM saved_accounts WHERE isActive = 1 LIMIT 1")
+    suspend fun getActiveAccount(): com.example.data.model.SavedAccountEntity?
+
+    @Query("SELECT * FROM saved_accounts WHERE isActive = 1 LIMIT 1")
+    fun observeActiveAccount(): Flow<com.example.data.model.SavedAccountEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAccount(account: com.example.data.model.SavedAccountEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(accounts: List<com.example.data.model.SavedAccountEntity>)
+
+    @Update
+    suspend fun updateAccount(account: com.example.data.model.SavedAccountEntity)
+
+    @Delete
+    suspend fun deleteAccount(account: com.example.data.model.SavedAccountEntity)
+
+    @Query("DELETE FROM saved_accounts WHERE uid = :uid")
+    suspend fun deleteAccountByUid(uid: String)
+
+    @Query("UPDATE saved_accounts SET isActive = CASE WHEN uid = :uid THEN 1 ELSE 0 END, lastActiveTimestamp = CASE WHEN uid = :uid THEN :timestamp ELSE lastActiveTimestamp END")
+    suspend fun setActiveAccount(uid: String, timestamp: Long = System.currentTimeMillis())
+
+    @Query("UPDATE saved_accounts SET isActive = 0")
+    suspend fun deactivateAllAccounts()
+
+    @Query("SELECT COUNT(*) FROM saved_accounts")
+    suspend fun getAccountsCount(): Int
+}
+
+@Dao
+interface UserInteractionDao {
+    // Likes
+    @Query("SELECT postId FROM user_likes WHERE userId = :userId")
+    fun getLikedPostIds(userId: String): Flow<List<Long>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM user_likes WHERE userId = :userId AND postId = :postId)")
+    suspend fun isPostLikedByUser(userId: String, postId: Long): Boolean
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLike(like: com.example.data.model.UserLikeEntity)
+
+    @Query("DELETE FROM user_likes WHERE userId = :userId AND postId = :postId")
+    suspend fun deleteLike(userId: String, postId: Long)
+
+    @Query("SELECT p.* FROM posts p INNER JOIN user_likes l ON p.id = l.postId WHERE l.userId = :userId ORDER BY l.timestamp DESC")
+    fun getLikedPostsForUser(userId: String): Flow<List<PostEntity>>
+
+    // Saves
+    @Query("SELECT postId FROM user_saves WHERE userId = :userId")
+    fun getSavedPostIds(userId: String): Flow<List<Long>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM user_saves WHERE userId = :userId AND postId = :postId)")
+    suspend fun isPostSavedByUser(userId: String, postId: Long): Boolean
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSave(save: com.example.data.model.UserSavedEntity)
+
+    @Query("DELETE FROM user_saves WHERE userId = :userId AND postId = :postId")
+    suspend fun deleteSave(userId: String, postId: Long)
+
+    @Query("SELECT p.* FROM posts p INNER JOIN user_saves s ON p.id = s.postId WHERE s.userId = :userId ORDER BY s.timestamp DESC")
+    fun getSavedPostsForUser(userId: String): Flow<List<PostEntity>>
+
+    // Subscriptions
+    @Query("SELECT channelName FROM user_subscriptions WHERE userId = :userId")
+    fun getSubscribedChannels(userId: String): Flow<List<String>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM user_subscriptions WHERE userId = :userId AND channelName = :channelName)")
+    suspend fun isSubscribedToChannel(userId: String, channelName: String): Boolean
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubscription(sub: com.example.data.model.UserSubscriptionEntity)
+
+    @Query("DELETE FROM user_subscriptions WHERE userId = :userId AND channelName = :channelName")
+    suspend fun deleteSubscription(userId: String, channelName: String)
+
+    // User created posts
+    @Query("SELECT * FROM posts WHERE creatorUid = :userId OR (isUserCreated = 1 AND creatorUid = :userId) ORDER BY id DESC")
+    fun getPostsByCreator(userId: String): Flow<List<PostEntity>>
+}
+
 
 

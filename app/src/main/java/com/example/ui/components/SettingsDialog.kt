@@ -43,6 +43,7 @@ fun SettingsDialog(
     onToggleDarkTheme: () -> Unit,
     onClearHistory: () -> Unit,
     onOpenAdminConsole: () -> Unit,
+    onOpenSwitchProfile: () -> Unit = {},
     isAdmin: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -95,12 +96,12 @@ fun SettingsDialog(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Settings & Page Management",
+                                    text = "Settings & Account",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Settings, Creator Pages & Studio",
+                                    text = "Settings, Profiles & Creator Studio",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -122,6 +123,64 @@ fun SettingsDialog(
                     contentPadding = PaddingValues(vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // SECTION 0: ACCOUNT & PROFILE MANAGEMENT (Switch Profile)
+                    item {
+                        SettingsSectionHeader(title = "Account Management")
+
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .clickable {
+                                    onDismiss()
+                                    onOpenSwitchProfile()
+                                }
+                                .testTag("settings_switch_profile_btn")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(SatisfyRed.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SwitchAccount,
+                                        contentDescription = null,
+                                        tint = SatisfyRed,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Switch Profile",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Manage and switch between your logged in accounts",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Filled.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
                     // SECTION 1: CREATOR PAGES & STUDIO (Highlighted user request)
                     item {
                         SettingsSectionHeader(title = "Creator Pages & Watch Time Studio")

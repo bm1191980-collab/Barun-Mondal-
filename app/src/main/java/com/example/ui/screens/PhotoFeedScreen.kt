@@ -15,11 +15,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -35,104 +37,189 @@ import kotlinx.coroutines.delay
 @Composable
 fun PhotoFeedScreen(
     photos: List<PostEntity>,
+    userPosts: List<PostEntity> = emptyList(),
     onToggleLike: (PostEntity) -> Unit,
     onToggleSave: (PostEntity) -> Unit,
     onToggleSubscribe: (String, Boolean) -> Unit,
     onOpenComments: (PostEntity) -> Unit,
     onUploadPhotoClick: () -> Unit,
+    onCreatorClick: (channelName: String, creatorUid: String, pageId: Long?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("All Posts", "My Posts (${userPosts.size})")
+
+    val displayedPosts = remember(selectedTab, photos, userPosts) {
+        if (selectedTab == 0) photos else userPosts
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Community Photos Header Banner
+        // Posts Header Banner
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp
+            tonalElevation = 2.dp
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Column {
-                    Text(
-                        text = "Community Posts",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Photos, Stories & Updates",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Posts",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "${displayedPosts.size}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Updates, Stories & Photos",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Button(
+                        onClick = onUploadPhotoClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "Create Post",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Create Post", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
 
-                Button(
-                    onClick = onUploadPhotoClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
-                    shape = RoundedCornerShape(20.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Secondary Filter Tabs (All Posts vs My Posts)
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                            color = SatisfyRed,
+                            height = 3.dp
+                        )
+                    },
+                    divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)) }
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.AddAPhoto,
-                        contentDescription = "Share Photo",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Share Photo", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = {
+                                Text(
+                                    text = title,
+                                    fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = if (selectedTab == index) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
 
-        // Photo Posts Stream
+        // Posts Stream
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 90.dp),
+            contentPadding = PaddingValues(bottom = 90.dp, top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(photos, key = { it.id }) { photo ->
+            items(displayedPosts, key = { it.id }) { post ->
                 PhotoPostCard(
-                    post = photo,
-                    onToggleLike = { onToggleLike(photo) },
-                    onToggleSave = { onToggleSave(photo) },
-                    onToggleSubscribe = { onToggleSubscribe(photo.channelName, photo.isSubscribed) },
-                    onOpenComments = { onOpenComments(photo) }
+                    post = post,
+                    onToggleLike = { onToggleLike(post) },
+                    onToggleSave = { onToggleSave(post) },
+                    onToggleSubscribe = { onToggleSubscribe(post.channelName, post.isSubscribed) },
+                    onOpenComments = { onOpenComments(post) },
+                    onCreatorClick = { onCreatorClick(post.channelName, post.creatorUid, post.pageId) }
                 )
             }
 
-            if (photos.isEmpty()) {
+            if (displayedPosts.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 48.dp),
+                            .padding(vertical = 56.dp, horizontal = 24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Outlined.PhotoLibrary,
-                                contentDescription = "No photos",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(56.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (selectedTab == 1) Icons.Outlined.Person else Icons.Outlined.DynamicFeed,
+                                    contentDescription = "No posts",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "No photo posts yet",
+                                text = if (selectedTab == 1) "You haven't created any posts yet" else "No posts published yet",
                                 fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = if (selectedTab == 1) "Share updates, stories, or photos with your audience" else "Be the first to publish a post on Satisfy",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
                             Button(
                                 onClick = onUploadPhotoClick,
-                                colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed)
+                                colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
+                                shape = RoundedCornerShape(24.dp),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                             ) {
-                                Text("Be the first to share a photo")
+                                Icon(
+                                    imageVector = Icons.Filled.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Create Post", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -149,6 +236,7 @@ fun PhotoPostCard(
     onToggleSave: () -> Unit,
     onToggleSubscribe: () -> Unit,
     onOpenComments: () -> Unit,
+    onCreatorClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -181,7 +269,12 @@ fun PhotoPostCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .clickable { onCreatorClick() }
+                ) {
                     Box(
                         modifier = Modifier
                             .size(40.dp)
@@ -192,7 +285,8 @@ fun PhotoPostCard(
                             AsyncImage(
                                 model = post.channelAvatar,
                                 contentDescription = post.channelName,
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
                             )
                         } else {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -246,43 +340,43 @@ fun PhotoPostCard(
                 }
             }
 
-            // Post Photo Image with Double Tap Gesture
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .background(Color.Black)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onDoubleTap = {
-                                if (!post.isLiked) {
-                                    onToggleLike()
+            // Post Photo / Media Image with Double Tap Gesture (if present)
+            if (post.mediaUrl.isNotBlank() || post.thumbnailUrl.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1.1f)
+                        .background(Color.Black)
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    if (!post.isLiked) {
+                                        onToggleLike()
+                                    }
+                                    showHeartAnimation = true
                                 }
-                                showHeartAnimation = true
-                            }
-                        )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (post.mediaUrl.isNotBlank() || post.thumbnailUrl.isNotBlank()) {
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
                     AsyncImage(
                         model = if (post.mediaUrl.isNotBlank() && post.mediaUrl.startsWith("http")) post.mediaUrl else post.thumbnailUrl,
                         contentDescription = post.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-                }
 
-                // Big Double Tap Heart Animation
-                if (showHeartAnimation) {
-                    Icon(
-                        imageVector = Icons.Filled.Favorite,
-                        contentDescription = null,
-                        tint = SatisfyRed,
-                        modifier = Modifier
-                            .size(100.dp)
-                            .scale(heartScale)
-                    )
+                    // Big Double Tap Heart Animation
+                    if (showHeartAnimation) {
+                        Icon(
+                            imageVector = Icons.Filled.Favorite,
+                            contentDescription = null,
+                            tint = SatisfyRed,
+                            modifier = Modifier
+                                .size(100.dp)
+                                .scale(heartScale)
+                        )
+                    }
                 }
             }
 
@@ -351,11 +445,11 @@ fun PhotoPostCard(
                                 action = Intent.ACTION_SEND
                                 putExtra(
                                     Intent.EXTRA_TEXT,
-                                    "Check out this photo by ${post.channelName} on Satisfy: ${post.title}"
+                                    "Check out this post by ${post.channelName} on Satisfy: ${post.title}"
                                 )
                                 type = "text/plain"
                             }
-                            val shareIntent = Intent.createChooser(sendIntent, "Share Satisfy Photo")
+                            val shareIntent = Intent.createChooser(sendIntent, "Share Satisfy Post")
                             context.startActivity(shareIntent)
                         },
                         modifier = Modifier.size(32.dp)
@@ -376,7 +470,7 @@ fun PhotoPostCard(
                 ) {
                     Icon(
                         imageVector = if (post.isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                        contentDescription = "Save Photo",
+                        contentDescription = "Save Post",
                         tint = if (post.isSaved) SatisfyGold else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(22.dp)
                     )
@@ -404,17 +498,19 @@ fun PhotoPostCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = post.tags,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SatisfyBlue
-                )
+                if (post.tags.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = post.tags,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SatisfyBlue
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "View all ${post.commentCount} comments",
+                    text = if (post.commentCount > 0) "View all ${post.commentCount} comments" else "Write a comment...",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.clickable { onOpenComments() }

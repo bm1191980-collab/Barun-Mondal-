@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +47,8 @@ fun VideoDetailScreen(
     onMinimize: () -> Unit,
     onClose: () -> Unit,
     onToggleControls: () -> Unit,
+    onToggleFullscreen: () -> Unit = {},
+    onOpenCreatorProfile: (String, String, Long?) -> Unit = { _, _, _ -> },
     onToggleLike: (PostEntity) -> Unit,
     onToggleDislike: (PostEntity) -> Unit,
     onToggleSave: (PostEntity) -> Unit,
@@ -58,34 +62,71 @@ fun VideoDetailScreen(
     val context = LocalContext.current
     var isDescriptionExpanded by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Sticky Video Player at Top
-        InteractiveVideoPlayer(
-            playerState = playerState,
-            onTogglePlayPause = onTogglePlayPause,
-            onSeek = onSeek,
-            onSeekRelative = onSeekRelative,
-            onToggleMute = onToggleMute,
-            onSpeedChange = onSpeedChange,
-            onQualityChange = onQualityChange,
-            onMinimize = onMinimize,
-            onClose = onClose,
-            onToggleControls = onToggleControls,
-            onWatchTimeTick = onWatchTimeTick
-        )
+    val nextVideo = remember(post.id, relatedVideos) {
+        relatedVideos.firstOrNull { it.id != post.id } ?: relatedVideos.firstOrNull()
+    }
 
-        // Scrollable Video Details & Related Content
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            contentPadding = PaddingValues(bottom = 80.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+    // Intercept back button when in fullscreen to return to normal mode
+    BackHandler(enabled = playerState.isFullscreen) {
+        onToggleFullscreen()
+    }
+
+    if (playerState.isFullscreen) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color.Black)
         ) {
+            InteractiveVideoPlayer(
+                playerState = playerState,
+                onTogglePlayPause = onTogglePlayPause,
+                onSeek = onSeek,
+                onSeekRelative = onSeekRelative,
+                onToggleMute = onToggleMute,
+                onSpeedChange = onSpeedChange,
+                onQualityChange = onQualityChange,
+                onMinimize = onMinimize,
+                onClose = onClose,
+                onToggleControls = onToggleControls,
+                onToggleFullscreen = onToggleFullscreen,
+                nextVideo = nextVideo,
+                onPlayNextVideo = onSelectRelatedVideo,
+                onWatchTimeTick = onWatchTimeTick,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // Sticky Video Player at Top
+            InteractiveVideoPlayer(
+                playerState = playerState,
+                onTogglePlayPause = onTogglePlayPause,
+                onSeek = onSeek,
+                onSeekRelative = onSeekRelative,
+                onToggleMute = onToggleMute,
+                onSpeedChange = onSpeedChange,
+                onQualityChange = onQualityChange,
+                onMinimize = onMinimize,
+                onClose = onClose,
+                onToggleControls = onToggleControls,
+                onToggleFullscreen = onToggleFullscreen,
+                nextVideo = nextVideo,
+                onPlayNextVideo = onSelectRelatedVideo,
+                onWatchTimeTick = onWatchTimeTick
+            )
+
+            // Scrollable Video Details & Related Content
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(bottom = 80.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             // Video Title & Stats
             item {
                 Column(
@@ -256,8 +297,18 @@ fun VideoDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Channel Info
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Channel Info (Click to open Public Creator Profile)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onOpenCreatorProfile(post.channelName, post.creatorUid, post.pageId)
+                                }
+                                .padding(end = 8.dp)
+                                .testTag("video_detail_creator_profile_btn")
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(42.dp)
@@ -537,4 +588,5 @@ fun VideoDetailScreen(
             }
         }
     }
+}
 }

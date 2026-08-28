@@ -25,9 +25,13 @@ import com.example.data.model.*
         WithdrawalRequestEntity::class,
         OwnerChatEntity::class,
         ChatMessageEntity::class,
-        MonetizationApplicationEntity::class
+        MonetizationApplicationEntity::class,
+        SavedAccountEntity::class,
+        UserLikeEntity::class,
+        UserSavedEntity::class,
+        UserSubscriptionEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class SatisfyDatabase : RoomDatabase() {
@@ -48,6 +52,8 @@ abstract class SatisfyDatabase : RoomDatabase() {
     abstract fun ownerChatDao(): OwnerChatDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun monetizationDao(): MonetizationDao
+    abstract fun savedAccountDao(): SavedAccountDao
+    abstract fun userInteractionDao(): UserInteractionDao
 
     companion object {
         @Volatile

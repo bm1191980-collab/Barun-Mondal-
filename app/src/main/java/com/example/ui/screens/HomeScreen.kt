@@ -44,6 +44,7 @@ fun HomeScreen(
     onToggleLike: (PostEntity) -> Unit,
     onToggleSave: (PostEntity) -> Unit,
     onDeletePost: (PostEntity) -> Unit,
+    onCreatorClick: (String, String, Long?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val filteredPosts = remember(posts, selectedCategory) {
@@ -110,7 +111,8 @@ fun HomeScreen(
                     onClick = { onVideoClick(post) },
                     onToggleLike = { onToggleLike(post) },
                     onToggleSave = { onToggleSave(post) },
-                    onDeletePost = { onDeletePost(post) }
+                    onDeletePost = { onDeletePost(post) },
+                    onCreatorClick = { onCreatorClick(post.channelName, post.creatorUid, post.pageId) }
                 )
             }
 
@@ -131,7 +133,8 @@ fun HomeScreen(
                     onClick = { onVideoClick(post) },
                     onToggleLike = { onToggleLike(post) },
                     onToggleSave = { onToggleSave(post) },
-                    onDeletePost = { onDeletePost(post) }
+                    onDeletePost = { onDeletePost(post) },
+                    onCreatorClick = { onCreatorClick(post.channelName, post.creatorUid, post.pageId) }
                 )
             }
 
@@ -176,6 +179,7 @@ fun VideoCard(
     onToggleLike: () -> Unit,
     onToggleSave: () -> Unit,
     onDeletePost: () -> Unit,
+    onCreatorClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -258,12 +262,13 @@ fun VideoCard(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Channel Avatar
+            // Channel Avatar (Clickable to open Creator Profile)
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
                     .background(SatisfyDarkSurfaceVariant)
+                    .clickable { onCreatorClick() }
             ) {
                 if (post.channelAvatar.isNotBlank()) {
                     AsyncImage(
@@ -296,10 +301,15 @@ fun VideoCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { onCreatorClick() }
+                ) {
                     Text(
                         text = post.channelName,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 

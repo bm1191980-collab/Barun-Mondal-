@@ -4,6 +4,8 @@ import com.example.data.local.CommentDao
 import com.example.data.local.CreatorPageDao
 import com.example.data.local.MonetizationDao
 import com.example.data.local.PostDao
+import com.example.data.local.SavedAccountDao
+import com.example.data.local.UserInteractionDao
 import com.example.data.local.WatchHistoryDao
 import com.example.data.model.*
 import kotlinx.coroutines.flow.Flow
@@ -13,7 +15,9 @@ class SatisfyRepository(
     private val commentDao: CommentDao,
     private val historyDao: WatchHistoryDao,
     private val creatorPageDao: CreatorPageDao,
-    private val monetizationDao: MonetizationDao
+    private val monetizationDao: MonetizationDao,
+    private val savedAccountDao: SavedAccountDao,
+    private val userInteractionDao: UserInteractionDao
 ) {
     val allPosts: Flow<List<PostEntity>> = postDao.getAllPosts()
     val pendingVerificationPosts: Flow<List<PostEntity>> = postDao.getPendingVerificationPosts()
@@ -27,6 +31,119 @@ class SatisfyRepository(
     val watchHistory: Flow<List<PostEntity>> = historyDao.getWatchHistory()
     val creatorPages: Flow<List<CreatorPageEntity>> = creatorPageDao.getAllPages()
     val monetizationApplications: Flow<List<MonetizationApplicationEntity>> = monetizationDao.getAllApplications()
+
+    // Multi-Account & Saved Profiles
+    val allSavedAccounts: Flow<List<SavedAccountEntity>> = savedAccountDao.getAllAccounts()
+    val activeSavedAccount: Flow<SavedAccountEntity?> = savedAccountDao.observeActiveAccount()
+
+    suspend fun getActiveAccount(): SavedAccountEntity? = savedAccountDao.getActiveAccount()
+
+    suspend fun getAccountByUid(uid: String): SavedAccountEntity? = savedAccountDao.getAccountByUid(uid)
+
+    suspend fun switchAccount(uid: String) {
+        savedAccountDao.setActiveAccount(uid, System.currentTimeMillis())
+    }
+
+    suspend fun saveAccount(account: SavedAccountEntity) {
+        savedAccountDao.insertAccount(account)
+    }
+
+    suspend fun updateAccount(account: SavedAccountEntity) {
+        savedAccountDao.updateAccount(account)
+    }
+
+    suspend fun deleteAccount(uid: String) {
+        savedAccountDao.deleteAccountByUid(uid)
+    }
+
+    suspend fun deactivateAllAccounts() {
+        savedAccountDao.deactivateAllAccounts()
+    }
+
+    // User-isolated flows
+    fun getUserWatchHistory(userId: String): Flow<List<PostEntity>> =
+        historyDao.getWatchHistoryForUser(userId)
+
+    fun getUserLikedPosts(userId: String): Flow<List<PostEntity>> =
+        userInteractionDao.getLikedPostsForUser(userId)
+
+    fun getUserSavedPosts(userId: String): Flow<List<PostEntity>> =
+        userInteractionDao.getSavedPostsForUser(userId)
+
+    fun getUserCreatedPosts(userId: String): Flow<List<PostEntity>> =
+        userInteractionDao.getPostsByCreator(userId)
+
+    fun getUserCreatorPages(userId: String): Flow<List<CreatorPageEntity>> =
+        creatorPageDao.getPagesForUser(userId)
+
+    fun getLikedPostIds(userId: String): Flow<List<Long>> =
+        userInteractionDao.getLikedPostIds(userId)
+
+    fun getSavedPostIds(userId: String): Flow<List<Long>> =
+        userInteractionDao.getSavedPostIds(userId)
+
+    fun getSubscribedChannels(userId: String): Flow<List<String>> =
+        userInteractionDao.getSubscribedChannels(userId)
+
+    suspend fun isPostLikedByUser(userId: String, postId: Long): Boolean =
+        userInteractionDao.isPostLikedByUser(userId, postId)
+
+    suspend fun isPostSavedByUser(userId: String, postId: Long): Boolean =
+        userInteractionDao.isPostSavedByUser(userId, postId)
+
+    suspend fun isSubscribedToChannel(userId: String, channelName: String): Boolean =
+        userInteractionDao.isSubscribedToChannel(userId, channelName)
+
+    suspend fun toggleUserLike(userId: String, post: PostEntity) {
+        val isLiked = userInteractionDao.isPostLikedByUser(userId, post.id)
+        if (isLiked) {
+            userInteractionDao.deleteLike(userId, post.id)
+            val newCount = maxOf(0L, post.likeCount - 1L)
+            postDao.updateLike(post.id, false, newCount)
+        } else {
+            userInteractionDao.insertLike(UserLikeEntity(userId, post.id))
+            val newCount = post.likeCount + 1L
+            postDao.updateLike(post.id, true, newCount)
+        }
+    }
+
+    suspend fun toggleUserSave(userId: String, post: PostEntity) {
+        val isSaved = userInteractionDao.isPostSavedByUser(userId, post.id)
+        if (isSaved) {
+            userInteractionDao.deleteSave(userId, post.id)
+            postDao.updateSaved(post.id, false)
+        } else {
+            userInteractionDao.insertSave(UserSavedEntity(userId, post.id))
+            postDao.updateSaved(post.id, true)
+        }
+    }
+
+    suspend fun toggleUserSubscribe(userId: String, channelName: String) {
+        val isSubscribed = userInteractionDao.isSubscribedToChannel(userId, channelName)
+        if (isSubscribed) {
+            userInteractionDao.deleteSubscription(userId, channelName)
+            postDao.updateSubscribeByChannel(channelName, false)
+        } else {
+            userInteractionDao.insertSubscription(UserSubscriptionEntity(userId, channelName))
+            postDao.updateSubscribeByChannel(channelName, true)
+        }
+    }
+
+    suspend fun recordUserWatchHistory(userId: String, postId: Long, lastPositionSeconds: Long = 0L, durationSeconds: Long = 0L) {
+        historyDao.recordWatch(
+            WatchHistoryEntity(
+                userId = userId,
+                postId = postId,
+                lastPositionSeconds = lastPositionSeconds,
+                durationSeconds = durationSeconds,
+                watchedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun clearUserHistory(userId: String) {
+        historyDao.clearHistoryForUser(userId)
+    }
 
     fun observeUserMonetizationApplication(userId: String): Flow<MonetizationApplicationEntity?> =
         monetizationDao.observeUserApplication(userId)
@@ -186,6 +303,57 @@ class SatisfyRepository(
     }
 
     suspend fun checkAndSeedInitialData() {
+        if (savedAccountDao.getAccountsCount() == 0) {
+            val seedAccounts = listOf(
+                SavedAccountEntity(
+                    uid = "user_creator",
+                    name = "Satisfy Creator",
+                    handle = "@satisfy_creator",
+                    email = "creator@satisfy.app",
+                    bio = "Welcome to my Satisfy channel! Sharing satisfying video creations, 4K nature cinematography, and community photography. ✨",
+                    avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+                    bannerUrl = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800",
+                    link = "satisfy.app/@satisfy_creator",
+                    subscriberCount = "1.2K subscribers",
+                    isPro = true,
+                    referralCode = "SATISFY100",
+                    lastActiveTimestamp = System.currentTimeMillis(),
+                    isActive = true
+                ),
+                SavedAccountEntity(
+                    uid = "user_alex_motion",
+                    name = "Alex Motion",
+                    handle = "@alex_motion",
+                    email = "alex@satisfy.app",
+                    bio = "4K Cinematic filmmaker & sound designer. Exploring drone visual storytelling and visual art. 🎥 🇧🇩",
+                    avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
+                    bannerUrl = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800",
+                    link = "satisfy.app/@alex_motion",
+                    subscriberCount = "450 subscribers",
+                    isPro = false,
+                    referralCode = "ALEX2026",
+                    lastActiveTimestamp = System.currentTimeMillis() - 3600000L,
+                    isActive = false
+                ),
+                SavedAccountEntity(
+                    uid = "user_nature_lens",
+                    name = "Nature Lens Studio",
+                    handle = "@nature_lens",
+                    email = "nature@satisfy.app",
+                    bio = "Wildlife photography, macro nature cinematography, relaxing rain audio streams & 60fps nature loops. 🌿🌧️",
+                    avatarUrl = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+                    bannerUrl = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800",
+                    link = "satisfy.app/@nature_lens",
+                    subscriberCount = "8.5K subscribers",
+                    isPro = true,
+                    referralCode = "NATURE99",
+                    lastActiveTimestamp = System.currentTimeMillis() - 7200000L,
+                    isActive = false
+                )
+            )
+            savedAccountDao.insertAll(seedAccounts)
+        }
+
         if (postDao.getCount() > 0) {
             // Sanitize any existing posts that might have legacy unplayable string placeholders
             try {

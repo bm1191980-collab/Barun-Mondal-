@@ -29,8 +29,28 @@ enum class ScreenTab {
     OWNER_CHAT,
     CREATOR_ANALYTICS,
     MONETIZATION,
-    SATISFY_RULES
+    SATISFY_RULES,
+    PUBLIC_CREATOR_PROFILE
 }
+
+data class PublicCreatorProfile(
+    val channelName: String = "",
+    val handle: String = "",
+    val avatarUrl: String = "",
+    val bannerUrl: String = "",
+    val bio: String = "",
+    val subscriberCount: String = "1.2K subscribers",
+    val isVerified: Boolean = true,
+    val isSubscribed: Boolean = false,
+    val isOwnProfile: Boolean = false,
+    val creatorUid: String = "",
+    val pageId: Long? = null,
+    val totalVideos: Int = 0,
+    val totalShorts: Int = 0,
+    val totalViews: Long = 0L,
+    val publicVideos: List<PostEntity> = emptyList(),
+    val publicShorts: List<PostEntity> = emptyList()
+)
 
 data class PlayerState(
     val activePost: PostEntity? = null,
@@ -42,7 +62,8 @@ data class PlayerState(
     val quality: String = "1080p",
     val isExpanded: Boolean = false,
     val isMiniPlayerVisible: Boolean = false,
-    val showControls: Boolean = true
+    val showControls: Boolean = true,
+    val isFullscreen: Boolean = false
 )
 
 data class UploadProcessingState(
@@ -75,6 +96,10 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     val selectedPage = MutableStateFlow<CreatorPageEntity?>(null)
     private val _selectedPagePosts = MutableStateFlow<List<PostEntity>>(emptyList())
     val selectedPagePosts: StateFlow<List<PostEntity>> = _selectedPagePosts.asStateFlow()
+
+    // Public Creator Profile state
+    val selectedPublicCreator = MutableStateFlow<PublicCreatorProfile?>(null)
+    var previousScreenTab: ScreenTab = ScreenTab.HOME
 
     // Admin state flows
     val isAdminAuthenticated: StateFlow<Boolean>
@@ -129,6 +154,11 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     private val _activePostComments = MutableStateFlow<List<CommentEntity>>(emptyList())
     val activePostComments: StateFlow<List<CommentEntity>> = _activePostComments.asStateFlow()
 
+    // Multi-Account / Switch Profile State
+    val savedAccounts: StateFlow<List<SavedAccountEntity>>
+    val showSwitchProfileDialog = MutableStateFlow(false)
+    val showAddAccountDialog = MutableStateFlow(false)
+
     // User Profile state flow
     val userProfile = MutableStateFlow(UserProfile())
 
@@ -155,7 +185,9 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             commentDao = database.commentDao(),
             historyDao = database.watchHistoryDao(),
             creatorPageDao = database.creatorPageDao(),
-            monetizationDao = database.monetizationDao()
+            monetizationDao = database.monetizationDao(),
+            savedAccountDao = database.savedAccountDao(),
+            userInteractionDao = database.userInteractionDao()
         )
         adminRepository = AdminRepository(
             context = application.applicationContext,
@@ -233,22 +265,42 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
-        savedPosts = repository.savedPosts.stateIn(
+
+        // Load saved user profile
+        userProfile.value = loadUserProfileFromPrefs()
+
+        // Multi-Account state
+        savedAccounts = repository.allSavedAccounts.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
-        userCreatedPosts = repository.userCreatedPosts.stateIn(
+
+        // User-isolated flows that reactively update whenever active user changes
+        savedPosts = userProfile.flatMapLatest { profile ->
+            repository.getUserSavedPosts(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
-        likedPosts = repository.likedPosts.stateIn(
+        userCreatedPosts = userProfile.flatMapLatest { profile ->
+            repository.getUserCreatedPosts(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
-        watchHistory = repository.watchHistory.stateIn(
+        likedPosts = userProfile.flatMapLatest { profile ->
+            repository.getUserLikedPosts(profile.uid)
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        watchHistory = userProfile.flatMapLatest { profile ->
+            repository.getUserWatchHistory(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
@@ -272,9 +324,6 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
-        // Load saved user profile
-        userProfile.value = loadUserProfileFromPrefs()
-
         // Pro Repository initialization
         proRepository = ProRepository(
             context = application.applicationContext,
@@ -290,42 +339,58 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             auditLogDao = database.auditLogDao()
         )
 
-        proSubscription = proRepository.getUserSubscription(userProfile.value.uid).stateIn(
+        proSubscription = userProfile.flatMapLatest { profile ->
+            proRepository.getUserSubscription(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             null
         )
-        isUserPro = proRepository.isUserPro(userProfile.value.uid).stateIn(
+        isUserPro = userProfile.flatMapLatest { profile ->
+            proRepository.isUserPro(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             false
         )
-        userWallet = proRepository.getUserWallet(userProfile.value.uid).stateIn(
+        userWallet = userProfile.flatMapLatest { profile ->
+            proRepository.getUserWallet(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             null
         )
-        walletTransactions = proRepository.getUserTransactions(userProfile.value.uid).stateIn(
+        walletTransactions = userProfile.flatMapLatest { profile ->
+            proRepository.getUserTransactions(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
-        userWithdrawals = proRepository.getUserWithdrawals(userProfile.value.uid).stateIn(
+        userWithdrawals = userProfile.flatMapLatest { profile ->
+            proRepository.getUserWithdrawals(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
-        userReferrals = proRepository.getUserReferrals(userProfile.value.uid).stateIn(
+        userReferrals = userProfile.flatMapLatest { profile ->
+            proRepository.getUserReferrals(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
         )
-        ownerChatInfo = proRepository.getOwnerChatForUser(userProfile.value.uid).stateIn(
+        ownerChatInfo = userProfile.flatMapLatest { profile ->
+            proRepository.getOwnerChatForUser(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             null
         )
-        ownerChatMessages = proRepository.getChatMessages(userProfile.value.uid).stateIn(
+        ownerChatMessages = userProfile.flatMapLatest { profile ->
+            proRepository.getChatMessages(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
@@ -363,7 +428,9 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             emptyList()
         )
 
-        userMonetizationApplication = repository.observeUserMonetizationApplication(userProfile.value.uid).stateIn(
+        userMonetizationApplication = userProfile.flatMapLatest { profile ->
+            repository.observeUserMonetizationApplication(profile.uid)
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             null
@@ -480,8 +547,9 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // Video Player Actions
-    fun openVideo(post: PostEntity, expanded: Boolean = true) {
+    fun openVideo(post: PostEntity, expanded: Boolean = true, keepFullscreen: Boolean = false) {
         val totalSecs = parseDurationToSeconds(post.duration)
+        val shouldBeFullscreen = if (keepFullscreen) playerState.value.isFullscreen else false
         playerState.value = PlayerState(
             activePost = post,
             isPlaying = true,
@@ -489,11 +557,12 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             durationSeconds = totalSecs.toFloat(),
             isExpanded = expanded,
             isMiniPlayerVisible = true,
-            showControls = true
+            showControls = true,
+            isFullscreen = shouldBeFullscreen
         )
         viewModelScope.launch {
             repository.incrementViewCount(post.id)
-            repository.recordWatchHistory(post.id)
+            repository.recordUserWatchHistory(userProfile.value.uid, post.id)
             loadComments(post.id)
             // Refresh active post with updated view count
             val updated = repository.getPostById(post.id)
@@ -503,8 +572,16 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun toggleFullscreen() {
+        playerState.value = playerState.value.copy(isFullscreen = !playerState.value.isFullscreen)
+    }
+
+    fun setFullscreen(fullscreen: Boolean) {
+        playerState.value = playerState.value.copy(isFullscreen = fullscreen)
+    }
+
     fun minimizePlayer() {
-        playerState.value = playerState.value.copy(isExpanded = false)
+        playerState.value = playerState.value.copy(isExpanded = false, isFullscreen = false)
     }
 
     fun expandPlayer() {
@@ -512,7 +589,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun closePlayer() {
-        playerState.value = PlayerState(activePost = null, isPlaying = false, isMiniPlayerVisible = false, isExpanded = false)
+        playerState.value = PlayerState(activePost = null, isPlaying = false, isMiniPlayerVisible = false, isExpanded = false, isFullscreen = false)
     }
 
     fun togglePlayPause() {
@@ -557,7 +634,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     // Likes, Saves, Subscribes
     fun toggleLike(post: PostEntity) {
         viewModelScope.launch {
-            repository.toggleLike(post)
+            repository.toggleUserLike(userProfile.value.uid, post)
             // Update active post reference if matched
             if (playerState.value.activePost?.id == post.id) {
                 val updated = repository.getPostById(post.id)
@@ -582,7 +659,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
 
     fun toggleSave(post: PostEntity) {
         viewModelScope.launch {
-            repository.toggleSave(post)
+            repository.toggleUserSave(userProfile.value.uid, post)
             if (playerState.value.activePost?.id == post.id) {
                 val updated = repository.getPostById(post.id)
                 if (updated != null) {
@@ -594,7 +671,8 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
 
     fun toggleSubscribe(channelName: String, currentSubscribed: Boolean) {
         viewModelScope.launch {
-            repository.toggleSubscribe(channelName, currentSubscribed)
+            repository.toggleUserSubscribe(userProfile.value.uid, channelName)
+            val newSub = !currentSubscribed
             val active = playerState.value.activePost
             if (active != null && active.channelName == channelName) {
                 val updated = repository.getPostById(active.id)
@@ -602,13 +680,21 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                     playerState.value = playerState.value.copy(activePost = updated)
                 }
             }
+            // Update selected public creator if viewing
+            val currentPub = selectedPublicCreator.value
+            if (currentPub != null && currentPub.channelName.equals(channelName, ignoreCase = true)) {
+                selectedPublicCreator.value = currentPub.copy(
+                    isSubscribed = newSub
+                )
+            }
         }
     }
 
     fun addComment(postId: Long, text: String) {
         if (text.isBlank()) return
         viewModelScope.launch {
-            repository.addComment(postId, text)
+            val prof = userProfile.value
+            repository.addComment(postId, text, authorName = prof.name)
             loadComments(postId)
             val updated = repository.getPostById(postId)
             if (updated != null && playerState.value.activePost?.id == postId) {
@@ -634,7 +720,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
 
     fun clearWatchHistory() {
         viewModelScope.launch {
-            repository.clearHistory()
+            repository.clearUserHistory(userProfile.value.uid)
         }
     }
 
@@ -738,7 +824,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                 isVerified = false,
                 isUserCreated = true,
                 status = VideoStatus.PENDING.name,
-                creatorUid = currentAdmin.value?.uid ?: "user_me"
+                creatorUid = currentProf.uid
             )
 
             val createdId = repository.createPost(newPost)
@@ -1000,6 +1086,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         val updated = current.copy(avatarUrl = path)
         userProfile.value = updated
         saveUserProfileToPrefs(updated)
+        syncActiveAccountToDb(updated)
     }
 
     fun updateProfileBannerUri(uri: Uri) {
@@ -1008,6 +1095,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         val updated = current.copy(bannerUrl = path)
         userProfile.value = updated
         saveUserProfileToPrefs(updated)
+        syncActiveAccountToDb(updated)
     }
 
     fun resetProfileBanner() {
@@ -1015,6 +1103,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         val updated = current.copy(bannerUrl = "")
         userProfile.value = updated
         saveUserProfileToPrefs(updated)
+        syncActiveAccountToDb(updated)
     }
 
     fun resetProfileAvatar() {
@@ -1022,6 +1111,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         val updated = current.copy(avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200")
         userProfile.value = updated
         saveUserProfileToPrefs(updated)
+        syncActiveAccountToDb(updated)
     }
 
     fun updateProfileInfo(name: String, handle: String, bio: String, link: String = "") {
@@ -1035,30 +1125,358 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         )
         userProfile.value = updated
         saveUserProfileToPrefs(updated)
+        syncActiveAccountToDb(updated)
+    }
+
+    private fun syncActiveAccountToDb(profile: UserProfile) {
+        viewModelScope.launch {
+            val existing = repository.getAccountByUid(profile.uid)
+            if (existing != null) {
+                repository.updateAccount(
+                    existing.copy(
+                        name = profile.name,
+                        handle = profile.handle,
+                        bio = profile.bio,
+                        avatarUrl = profile.avatarUrl,
+                        bannerUrl = profile.bannerUrl,
+                        link = profile.link,
+                        isPro = profile.isPro,
+                        proExpiresAt = profile.proExpiresAt,
+                        subscriberCount = profile.subscriberCount,
+                        referralCode = profile.referralCode,
+                        referredByCode = profile.referredByCode
+                    )
+                )
+            } else {
+                repository.saveAccount(
+                    SavedAccountEntity(
+                        uid = profile.uid,
+                        name = profile.name,
+                        handle = profile.handle,
+                        email = profile.email,
+                        bio = profile.bio,
+                        avatarUrl = profile.avatarUrl,
+                        bannerUrl = profile.bannerUrl,
+                        link = profile.link,
+                        subscriberCount = profile.subscriberCount,
+                        isPro = profile.isPro,
+                        proExpiresAt = profile.proExpiresAt,
+                        referralCode = profile.referralCode,
+                        referredByCode = profile.referredByCode,
+                        lastActiveTimestamp = System.currentTimeMillis(),
+                        isActive = true
+                    )
+                )
+            }
+        }
     }
 
     private fun saveUserProfileToPrefs(profile: UserProfile) {
         val prefs = getApplication<Application>().getSharedPreferences("satisfy_user_profile", Context.MODE_PRIVATE)
         prefs.edit()
+            .putString("user_uid", profile.uid)
             .putString("user_name", profile.name)
             .putString("user_handle", profile.handle)
+            .putString("user_email", profile.email)
             .putString("user_bio", profile.bio)
             .putString("user_avatar", profile.avatarUrl)
             .putString("user_banner", profile.bannerUrl)
             .putString("user_link", profile.link)
+            .putString("user_subscriber_count", profile.subscriberCount)
+            .putBoolean("user_is_pro", profile.isPro)
+            .putLong("user_pro_expires", profile.proExpiresAt ?: 0L)
+            .putString("user_referral_code", profile.referralCode)
+            .putString("user_referred_by_code", profile.referredByCode ?: "")
             .apply()
     }
 
     private fun loadUserProfileFromPrefs(): UserProfile {
         val prefs = getApplication<Application>().getSharedPreferences("satisfy_user_profile", Context.MODE_PRIVATE)
         return UserProfile(
+            uid = prefs.getString("user_uid", "user_creator") ?: "user_creator",
             name = prefs.getString("user_name", "Satisfy Creator") ?: "Satisfy Creator",
             handle = prefs.getString("user_handle", "@satisfy_creator") ?: "@satisfy_creator",
+            email = prefs.getString("user_email", "creator@satisfy.app") ?: "creator@satisfy.app",
             bio = prefs.getString("user_bio", "Welcome to my Satisfy channel! Sharing satisfying video creations, 4K nature cinematography, and community photography. ✨") ?: "",
             avatarUrl = prefs.getString("user_avatar", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200") ?: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
             bannerUrl = prefs.getString("user_banner", "") ?: "",
-            link = prefs.getString("user_link", "satisfy.app/@satisfy_creator") ?: "satisfy.app/@satisfy_creator"
+            link = prefs.getString("user_link", "satisfy.app/@satisfy_creator") ?: "satisfy.app/@satisfy_creator",
+            subscriberCount = prefs.getString("user_subscriber_count", "1.2K subscribers") ?: "1.2K subscribers",
+            isPro = prefs.getBoolean("user_is_pro", true),
+            proExpiresAt = prefs.getLong("user_pro_expires", 0L).let { if (it > 0) it else null },
+            referralCode = prefs.getString("user_referral_code", "SATISFY100") ?: "SATISFY100",
+            referredByCode = prefs.getString("user_referred_by_code", null)
         )
+    }
+
+    // --- MULTI-ACCOUNT / SWITCH PROFILE ACTIONS ---
+
+    fun openSwitchProfileDialog() {
+        showSwitchProfileDialog.value = true
+    }
+
+    fun closeSwitchProfileDialog() {
+        showSwitchProfileDialog.value = false
+    }
+
+    fun openAddAccountDialog() {
+        showAddAccountDialog.value = true
+    }
+
+    fun closeAddAccountDialog() {
+        showAddAccountDialog.value = false
+    }
+
+    fun switchAccount(account: SavedAccountEntity) {
+        viewModelScope.launch {
+            repository.switchAccount(account.uid)
+            val updated = UserProfile(
+                uid = account.uid,
+                name = account.name,
+                handle = account.handle,
+                email = account.email,
+                bio = account.bio,
+                avatarUrl = account.avatarUrl,
+                bannerUrl = account.bannerUrl,
+                link = account.link,
+                subscriberCount = account.subscriberCount,
+                isPro = account.isPro,
+                proExpiresAt = account.proExpiresAt,
+                referralCode = account.referralCode,
+                referredByCode = account.referredByCode
+            )
+            userProfile.value = updated
+            saveUserProfileToPrefs(updated)
+            proRepository.seedInitialProData(account.uid, account.referralCode)
+            showSwitchProfileDialog.value = false
+        }
+    }
+
+    fun addNewAccount(
+        name: String,
+        handle: String,
+        email: String,
+        bio: String,
+        avatarUrl: String = "",
+        bannerUrl: String = "",
+        isPro: Boolean = false
+    ) {
+        viewModelScope.launch {
+            val cleanName = name.trim().ifBlank { "Satisfy User" }
+            val cleanHandle = if (handle.trim().startsWith("@")) handle.trim() else "@${handle.trim().ifBlank { "user_" + (1000..9999).random() }}"
+            val cleanEmail = email.trim().ifBlank { "user${(1000..9999).random()}@satisfy.app" }
+            val cleanBio = bio.trim().ifBlank { "Creative Satisfy member ✨" }
+            val cleanAvatar = avatarUrl.trim().ifBlank { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200" }
+            val uniqueUid = "user_" + System.currentTimeMillis()
+            val referralCode = "SATISFY" + (100..999).random()
+
+            val newAccount = SavedAccountEntity(
+                uid = uniqueUid,
+                name = cleanName,
+                handle = cleanHandle,
+                email = cleanEmail,
+                bio = cleanBio,
+                avatarUrl = cleanAvatar,
+                bannerUrl = bannerUrl,
+                link = "satisfy.app/$cleanHandle",
+                subscriberCount = "0 subscribers",
+                isPro = isPro,
+                referralCode = referralCode,
+                lastActiveTimestamp = System.currentTimeMillis(),
+                isActive = true
+            )
+
+            repository.saveAccount(newAccount)
+            switchAccount(newAccount)
+            showAddAccountDialog.value = false
+            showSwitchProfileDialog.value = false
+        }
+    }
+
+    fun removeSavedAccount(uid: String) {
+        viewModelScope.launch {
+            repository.deleteAccount(uid)
+            val accounts = repository.allSavedAccounts.firstOrNull() ?: emptyList()
+            if (userProfile.value.uid == uid) {
+                val nextAccount = accounts.firstOrNull { it.uid != uid }
+                if (nextAccount != null) {
+                    switchAccount(nextAccount)
+                } else {
+                    val defaultAcc = SavedAccountEntity(
+                        uid = "user_creator",
+                        name = "Satisfy Creator",
+                        handle = "@satisfy_creator",
+                        email = "creator@satisfy.app",
+                        bio = "Welcome to my Satisfy channel!",
+                        avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+                        subscriberCount = "1.2K subscribers",
+                        isPro = true,
+                        referralCode = "SATISFY100",
+                        isActive = true
+                    )
+                    repository.saveAccount(defaultAcc)
+                    switchAccount(defaultAcc)
+                }
+            }
+        }
+    }
+
+    fun logoutCurrentAccount() {
+        viewModelScope.launch {
+            val currentUid = userProfile.value.uid
+            val accounts = savedAccounts.value
+            val remaining = accounts.filter { it.uid != currentUid }
+            if (remaining.isNotEmpty()) {
+                switchAccount(remaining.first())
+            } else {
+                val guestProfile = UserProfile(
+                    uid = "user_guest",
+                    name = "Guest User",
+                    handle = "@guest",
+                    email = "guest@satisfy.app",
+                    bio = "Viewing Satisfy as guest",
+                    avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+                    subscriberCount = "0 subscribers",
+                    isPro = false,
+                    referralCode = "GUEST"
+                )
+                userProfile.value = guestProfile
+                saveUserProfileToPrefs(guestProfile)
+            }
+            showSwitchProfileDialog.value = false
+        }
+    }
+
+    fun logoutAllAccounts() {
+        viewModelScope.launch {
+            repository.deactivateAllAccounts()
+            val guestProfile = UserProfile(
+                uid = "user_guest",
+                name = "Guest User",
+                handle = "@guest",
+                email = "guest@satisfy.app",
+                bio = "Viewing Satisfy as guest",
+                avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+                subscriberCount = "0 subscribers",
+                isPro = false,
+                referralCode = "GUEST"
+            )
+            userProfile.value = guestProfile
+            saveUserProfileToPrefs(guestProfile)
+            showSwitchProfileDialog.value = false
+        }
+    }
+
+    // --- PUBLIC CREATOR PROFILE ACTIONS ---
+
+    fun openPublicCreatorProfile(channelName: String, creatorUid: String = "", pageId: Long? = null) {
+        viewModelScope.launch {
+            if (currentTab.value != ScreenTab.PUBLIC_CREATOR_PROFILE) {
+                previousScreenTab = currentTab.value
+            }
+
+            // Find all posts by this creator
+            val currentPosts = allPosts.value
+            val approvedPostsList = currentPosts.filter { post ->
+                val isApproved = post.status.equals("APPROVED", ignoreCase = true) ||
+                                 post.status.isBlank() ||
+                                 post.status.equals("PUBLISHED", ignoreCase = true)
+                val matchesChannel = post.channelName.equals(channelName, ignoreCase = true) ||
+                                     (creatorUid.isNotBlank() && post.creatorUid == creatorUid) ||
+                                     (pageId != null && post.pageId == pageId)
+                isApproved && matchesChannel
+            }
+
+            val publicVideos = approvedPostsList.filter { it.type == PostType.VIDEO }
+            val publicShorts = approvedPostsList.filter { it.type == PostType.SHORT }
+            val totalViews = approvedPostsList.sumOf { it.viewCount }
+
+            val currentUser = userProfile.value
+            val isOwn = channelName.equals(currentUser.name, ignoreCase = true) ||
+                        (creatorUid.isNotBlank() && creatorUid == currentUser.uid) ||
+                        (channelName.equals("Satisfy Creator", ignoreCase = true) && currentUser.name.contains("Creator", ignoreCase = true))
+
+            val samplePost = approvedPostsList.firstOrNull() ?: currentPosts.firstOrNull { it.channelName.equals(channelName, ignoreCase = true) }
+            val pageEntity = if (pageId != null) creatorPages.value.firstOrNull { it.id == pageId }
+                             else creatorPages.value.firstOrNull { it.name.equals(channelName, ignoreCase = true) }
+
+            val avatar = when {
+                isOwn && currentUser.avatarUrl.isNotBlank() -> currentUser.avatarUrl
+                pageEntity != null && pageEntity.avatarUrl.isNotBlank() -> pageEntity.avatarUrl
+                samplePost != null && samplePost.channelAvatar.isNotBlank() -> samplePost.channelAvatar
+                else -> "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200"
+            }
+
+            val banner = when {
+                isOwn && currentUser.bannerUrl.isNotBlank() -> currentUser.bannerUrl
+                pageEntity != null && pageEntity.bannerUrl.isNotBlank() -> pageEntity.bannerUrl
+                channelName.contains("Nature", ignoreCase = true) -> "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800"
+                channelName.contains("Neon", ignoreCase = true) -> "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800"
+                channelName.contains("Zen", ignoreCase = true) -> "https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?w=800"
+                channelName.contains("Soap", ignoreCase = true) -> "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800"
+                else -> "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
+            }
+
+            val handle = when {
+                isOwn -> currentUser.handle
+                pageEntity != null -> pageEntity.handle
+                else -> "@" + channelName.lowercase().replace(" ", "_").replace("[^a-z0-9_]".toRegex(), "")
+            }
+
+            val bio = when {
+                isOwn -> currentUser.bio
+                pageEntity != null && pageEntity.description.isNotBlank() -> pageEntity.description
+                channelName.contains("Nature", ignoreCase = true) -> "Capturing the serene beauty of Earth in ultra high definition. Relaxing 4K nature documentaries, crystal-clear waterfalls, and peaceful wilderness escapes. ✨🌲"
+                channelName.contains("Neon", ignoreCase = true) -> "Futuristic neon light loops, vibrant 3D animations, and hypnotic visual effects designed for deep focus and aesthetic satisfaction. ⚡🎨"
+                channelName.contains("Zen", ignoreCase = true) -> "Calming motion design, fluid simulations, and soothing geometric patterns. Created to relieve stress and bring mindfulness. 🌊🧘"
+                channelName.contains("Soap", ignoreCase = true) -> "Oddly satisfying soap carving, kinetic textures, and ASMR slicing videos. Pure relaxation in every slice. 🧼✨"
+                channelName.contains("Hydraulic", ignoreCase = true) -> "Crushing everyday objects under extreme hydraulic pressure! Ultimate satisfying destruction in slow motion. 💥"
+                channelName.contains("Kinetic", ignoreCase = true) -> "Satisfying kinetic sand cutting, scooping, and squishing with crisp high-definition ASMR sound. 🏖️"
+                else -> "Official creator channel for $channelName. Sharing relaxing, satisfying, and high-quality creations for the Satisfy community."
+            }
+
+            val subCount = when {
+                isOwn -> currentUser.subscriberCount
+                samplePost != null && samplePost.subscriberCount.isNotBlank() -> samplePost.subscriberCount
+                pageEntity != null -> "${pageEntity.followersCount} followers"
+                else -> "1.2K subscribers"
+            }
+
+            val verified = when {
+                isOwn -> true
+                samplePost != null -> samplePost.isVerified
+                pageEntity != null -> pageEntity.isVerified
+                else -> true
+            }
+
+            val isSubscribed = samplePost?.isSubscribed ?: false
+
+            selectedPublicCreator.value = PublicCreatorProfile(
+                channelName = channelName,
+                handle = handle,
+                avatarUrl = avatar,
+                bannerUrl = banner,
+                bio = bio,
+                subscriberCount = subCount,
+                isVerified = verified,
+                isSubscribed = isSubscribed,
+                isOwnProfile = isOwn,
+                creatorUid = creatorUid,
+                pageId = pageId,
+                totalVideos = publicVideos.size,
+                totalShorts = publicShorts.size,
+                totalViews = if (totalViews > 0) totalViews else (publicVideos.size + publicShorts.size) * 12400L + 8500L,
+                publicVideos = publicVideos,
+                publicShorts = publicShorts
+            )
+
+            // If player is full screen expanded, minimize it so user can see profile page
+            if (playerState.value.isExpanded) {
+                minimizePlayer()
+            }
+
+            currentTab.value = ScreenTab.PUBLIC_CREATOR_PROFILE
+        }
     }
 
     // --- CREATOR PAGES & WATCH TIME ACTIONS ---

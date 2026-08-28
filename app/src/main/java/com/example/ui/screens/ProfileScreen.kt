@@ -68,6 +68,7 @@ fun ProfileScreen(
     onOpenCreatePage: () -> Unit = {},
     onOpenPageDetails: (CreatorPageEntity) -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenSwitchProfile: () -> Unit = {},
     onSelectPost: (PostEntity) -> Unit,
     onDeletePost: (PostEntity) -> Unit,
     onClearHistory: () -> Unit,
@@ -164,7 +165,7 @@ fun ProfileScreen(
                         )
                     }
 
-                    // Top Bar Floating Actions (Settings & Change Banner)
+                    // Top Bar Floating Actions (Settings, Switch Profile & Change Banner)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -173,32 +174,66 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Settings Button
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color.Black.copy(alpha = 0.70f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
-                            modifier = Modifier
-                                .clickable { onOpenSettings() }
-                                .testTag("profile_settings_button")
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            // Settings Button
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color.Black.copy(alpha = 0.70f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                                modifier = Modifier
+                                    .clickable { onOpenSettings() }
+                                    .testTag("profile_settings_button")
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Settings,
-                                    contentDescription = "Settings",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "Settings",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Settings,
+                                        contentDescription = "Settings",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "Settings",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+
+                            // Switch Profile Quick Action Button
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color.Black.copy(alpha = 0.70f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, SatisfyRed.copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .clickable { onOpenSwitchProfile() }
+                                    .testTag("profile_switch_account_button")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SwitchAccount,
+                                        contentDescription = "Switch Profile",
+                                        tint = SatisfyRed,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "Switch",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
 

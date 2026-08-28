@@ -81,7 +81,49 @@ data class CreatorPageEntity(
     val isVerified: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val totalWatchTimeSeconds: Long = 0L,
-    val totalViews: Long = 0L
+    val totalViews: Long = 0L,
+    val creatorUid: String = "user_creator"
+)
+
+@Entity(tableName = "saved_accounts")
+data class SavedAccountEntity(
+    @PrimaryKey
+    val uid: String,
+    val name: String,
+    val handle: String,
+    val email: String,
+    val bio: String = "",
+    val avatarUrl: String = "",
+    val bannerUrl: String = "",
+    val link: String = "",
+    val subscriberCount: String = "1.2K subscribers",
+    val isPro: Boolean = false,
+    val proExpiresAt: Long? = null,
+    val referralCode: String = "",
+    val referredByCode: String? = null,
+    val lastActiveTimestamp: Long = System.currentTimeMillis(),
+    val isActive: Boolean = false
+)
+
+@Entity(tableName = "user_likes", primaryKeys = ["userId", "postId"])
+data class UserLikeEntity(
+    val userId: String,
+    val postId: Long,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "user_saves", primaryKeys = ["userId", "postId"])
+data class UserSavedEntity(
+    val userId: String,
+    val postId: Long,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "user_subscriptions", primaryKeys = ["userId", "channelName"])
+data class UserSubscriptionEntity(
+    val userId: String,
+    val channelName: String,
+    val subscribedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "comments")
