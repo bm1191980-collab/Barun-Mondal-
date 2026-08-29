@@ -4,6 +4,101 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.util.UUID
 
+/**
+ * Satisfy Pro System: 3 Monthly Subscription Plans
+ * 1. Pro — ₹5/month (Basic Pro features)
+ * 2. Premium Pro — ₹15/month (All Pro features + Additional Premium features)
+ * 3. Super Premium Pro — ₹25/month (All Premium Pro features + Highest-level Super Premium features)
+ *
+ * Revenue Split Architecture:
+ * - Net Amount = Gross Plan Price - Applicable Payment Gateway Fee
+ * - With Verified Referrer: 50% to App Owner & 50% to Verified Referrer
+ * - Without Referrer (Direct): 100% Net Amount to App Owner
+ */
+enum class SatisfyProPlan(
+    val planId: String,
+    val planName: String,
+    val priceInr: Double,
+    val billingPeriod: String = "1 Month (30 Days)",
+    val tierLevel: Int,
+    val tagLine: String,
+    val badgeLabel: String,
+    val gatewayFeeInr: Double,
+    val features: List<String>
+) {
+    PRO(
+        planId = "plan_pro_5",
+        planName = "Pro",
+        priceInr = 5.0,
+        billingPeriod = "1 Month (30 Days)",
+        tierLevel = 1,
+        tagLine = "Basic Pro Experience",
+        badgeLabel = "PRO",
+        gatewayFeeInr = 0.50,
+        features = listOf(
+            "PRO Verified Gold Badge on profile & video comments",
+            "Full 1080p Full HD crystal streaming & zero banner ads",
+            "Basic Referral Program: Earn 50% net share (₹2.25/invite)",
+            "Standard creator upload allowance & basic video analytics",
+            "Exclusive community supporter badge"
+        )
+    ),
+    PREMIUM_PRO(
+        planId = "plan_premium_pro_15",
+        planName = "Premium Pro",
+        priceInr = 15.0,
+        billingPeriod = "1 Month (30 Days)",
+        tierLevel = 2,
+        tagLine = "Enhanced Creator & Priority Perks",
+        badgeLabel = "PREMIUM PRO",
+        gatewayFeeInr = 1.00,
+        features = listOf(
+            "All Basic Pro features included",
+            "1-on-1 Direct VIP Priority Chat with App Owner & support",
+            "Ultra 4K 60fps streaming & high-bitrate spatial sound",
+            "Fast-track video monetization & priority verification queue",
+            "Custom animated channel banner & VIP Creator badge",
+            "Enhanced Referral Share: Earn ₹7.00 per Premium Pro referral"
+        )
+    ),
+    SUPER_PREMIUM_PRO(
+        planId = "plan_super_premium_pro_25",
+        planName = "Super Premium Pro",
+        priceInr = 25.0,
+        billingPeriod = "1 Month (30 Days)",
+        tierLevel = 3,
+        tagLine = "The Ultimate Elite VIP & Creator Experience",
+        badgeLabel = "SUPER PRO VIP",
+        gatewayFeeInr = 1.50,
+        features = listOf(
+            "All Premium Pro features included",
+            "VIP Diamond Super PRO Badge & Verified Star on channel",
+            "Dedicated 24/7 VIP Instant Owner Hotline & priority support",
+            "Priority Homepage algorithm boost for all uploaded videos & shorts",
+            "Unlimited 4K HDR master uploads with zero bitrate compression",
+            "Maximum Referral Earnings: Earn ₹11.75 per Super Pro invite",
+            "Exclusive early access to Satisfy AI creator studio & beta tools"
+        )
+    );
+
+    val netAmount: Double get() = priceInr - gatewayFeeInr
+    val referrerPayout: Double get() = (priceInr - gatewayFeeInr) * 0.50
+    val ownerRevenue: Double get() = (priceInr - gatewayFeeInr) * 0.50
+
+    companion object {
+        fun fromPlanId(id: String?): SatisfyProPlan {
+            return entries.firstOrNull { it.planId.equals(id, ignoreCase = true) }
+                ?: entries.firstOrNull { it.name.equals(id, ignoreCase = true) }
+                ?: entries.firstOrNull { it.planName.equals(id, ignoreCase = true) }
+                ?: PRO
+        }
+
+        fun fromPrice(price: Double): SatisfyProPlan {
+            return entries.firstOrNull { it.priceInr == price } ?: PRO
+        }
+    }
+}
+
 @Entity(tableName = "pro_subscriptions")
 data class ProSubscriptionEntity(
     @PrimaryKey(autoGenerate = true)
@@ -12,7 +107,10 @@ data class ProSubscriptionEntity(
     val userId: String,
     val userName: String,
     val userEmail: String = "",
-    val planName: String = "Pro Membership (Monthly)",
+    val planId: String = "plan_pro_5",
+    val planName: String = "Pro",
+    val planTier: String = "PRO", // "PRO", "PREMIUM_PRO", "SUPER_PREMIUM_PRO"
+    val billingPeriod: String = "1 Month (30 Days)",
     val amount: Double = 5.0,
     val paymentId: String = "PAY-" + UUID.randomUUID().toString().take(10).uppercase(),
     val orderId: String = "ORD-" + UUID.randomUUID().toString().take(10).uppercase(),
@@ -20,15 +118,15 @@ data class ProSubscriptionEntity(
     val paymentStatus: String = "SUCCESS", // "SUCCESS", "FAILED", "REFUNDED"
     val startedAt: Long = System.currentTimeMillis(),
     val expiresAt: Long = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000), // 30 days
-    val status: String = "ACTIVE", // "ACTIVE", "EXPIRED", "CANCELLED", "REFUNDED"
+    val status: String = "ACTIVE", // "ACTIVE", "UPGRADED", "SUPERSEDED", "EXPIRED", "CANCELLED", "REFUNDED"
     val referrerUid: String? = null,
     val referrerCode: String? = null,
-    val baseReferralCommission: Double = 4.0,
+    val baseReferralCommission: Double = 4.50,
     val gatewayFee: Double = 0.50,
-    val finalReferralPayout: Double = 3.50,
-    val referralRewardAmount: Double = 3.50, // compatibility alias
-    val ownerRevenueAmount: Double = 1.0,
-    val notes: String = "₹5.00 Gross → PG Fee ₹0.50 deducted from Referrer (₹4.00 - ₹0.50 = ₹3.50 Payout) | Owner ₹1.00 (Protected)"
+    val finalReferralPayout: Double = 2.25,
+    val referralRewardAmount: Double = 2.25, // compatibility alias
+    val ownerRevenueAmount: Double = 2.25,
+    val notes: String = ""
 )
 
 @Entity(tableName = "referrals")
@@ -42,22 +140,24 @@ data class ReferralEntity(
     val referrerCode: String,
     val refereeUid: String,
     val refereeName: String,
-    val proPlan: String = "Pro Membership (₹5/month)",
+    val planId: String = "plan_pro_5",
+    val proPlan: String = "Pro (₹5/month)",
+    val planTier: String = "PRO",
     val grossPayment: Double = 5.0,
-    val baseReferralCommission: Double = 4.0,
+    val baseReferralCommission: Double = 4.50,
     val gatewayFee: Double = 0.50,
-    val finalReferralPayout: Double = 3.50,
-    val ownerCommission: Double = 1.0,
+    val finalReferralPayout: Double = 2.25,
+    val ownerCommission: Double = 2.25,
     val paymentStatus: String = "SUCCESS", // "SUCCESS", "FAILED", "REFUNDED"
     val commissionStatus: String = "AVAILABLE", // "PENDING", "AVAILABLE", "WITHDRAWN", "REVERSED", "CANCELLED"
     val rewardStatus: String = "AVAILABLE", // compatibility alias
-    val rewardAmount: Double = 3.50, // compatibility alias (= finalReferralPayout)
+    val rewardAmount: Double = 2.25, // compatibility alias (= finalReferralPayout)
     val joinedAt: Long = System.currentTimeMillis(),
     val hasPurchasedPro: Boolean = true,
     val proSubscriptionId: Long? = null,
     val paymentId: String = "",
     val isSuspicious: Boolean = false,
-    val auditNote: String = "₹5.00 Gross - ₹0.50 Fee = ₹3.50 Final Referrer Payout | ₹1.00 Owner Commission"
+    val auditNote: String = ""
 )
 
 @Entity(tableName = "wallets")
@@ -119,6 +219,7 @@ data class OwnerChatEntity(
     val userAvatar: String = "",
     val userEmail: String = "",
     val isPro: Boolean = true,
+    val proPlanTier: String = "PRO", // "PRO", "PREMIUM_PRO", "SUPER_PREMIUM_PRO"
     val lastMessage: String = "",
     val lastMessageTimestamp: Long = System.currentTimeMillis(),
     val unreadCountForAdmin: Int = 0,
@@ -145,22 +246,30 @@ data class ProAnalyticsSummary(
     val activeProUsers: Int = 0,
     val expiredProUsers: Int = 0,
     val proRevenue: Double = 0.0,
+    // Per-Plan breakdown
+    val proPlanUsersCount: Int = 0,
+    val proPlanRevenue: Double = 0.0,
+    val premiumProPlanUsersCount: Int = 0,
+    val premiumProPlanRevenue: Double = 0.0,
+    val superPremiumProPlanUsersCount: Int = 0,
+    val superPremiumProPlanRevenue: Double = 0.0,
     val totalReferrals: Int = 0,
     val successfulProReferrals: Int = 0,
-    // 8 Exact Referral Commission Metrics for Admin Dashboard
-    val totalReferralSales: Double = 0.0,         // e.g. count * ₹5.00
-    val totalBaseCommission: Double = 0.0,        // e.g. count * ₹4.00
-    val totalFeesDeducted: Double = 0.0,          // e.g. count * ₹0.50
-    val totalFinalReferralPayout: Double = 0.0,   // e.g. count * ₹3.50
-    val ownerCommissionTotal: Double = 0.0,       // e.g. count * ₹1.00 (Protected)
+    // 8 Referral Commission Metrics for Admin Dashboard
+    val totalReferralSales: Double = 0.0,
+    val totalBaseCommission: Double = 0.0,
+    val totalFeesDeducted: Double = 0.0,
+    val totalFinalReferralPayout: Double = 0.0,
+    val ownerCommissionTotal: Double = 0.0,
     val pendingCommission: Double = 0.0,
     val availableCommission: Double = 0.0,
     val withdrawnCommission: Double = 0.0,
-    // Legacy / Summary helpers
+    // Summary helpers
     val totalReferralRewards: Double = 0.0,
     val pendingWithdrawalsCount: Int = 0,
     val pendingWithdrawalsAmount: Double = 0.0,
     val paidWithdrawalsAmount: Double = 0.0,
     val ownerNetRevenue: Double = 0.0
 )
+
 

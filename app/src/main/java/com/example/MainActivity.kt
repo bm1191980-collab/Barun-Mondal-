@@ -1,6 +1,8 @@
 package com.example
 
+import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -19,6 +21,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.PostEntity
 import com.example.data.model.PostType
@@ -127,6 +132,28 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Handle Fullscreen Auto-Rotation & Immersive System Bars
+            DisposableEffect(playerState.isFullscreen) {
+                val window = this@MainActivity.window
+                val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+
+                if (playerState.isFullscreen) {
+                    // Auto-rotate to Landscape Mode
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    insetsController.hide(WindowInsetsCompat.Type.systemBars())
+                    insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                } else {
+                    // Restore Portrait Mode
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    insetsController.show(WindowInsetsCompat.Type.systemBars())
+                }
+
+                onDispose {
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    insetsController.show(WindowInsetsCompat.Type.systemBars())
+                }
+            }
+
             // Upload success snackbar auto dismiss
             LaunchedEffect(uploadMessage) {
                 if (uploadMessage != null) {
@@ -156,24 +183,12 @@ class MainActivity : ComponentActivity() {
                         },
                         bottomBar = {
                             if (!playerState.isExpanded && currentTab != ScreenTab.ADMIN) {
-                                Column {
-                                    // Mini Player if active and minimized
-                                    if (playerState.isMiniPlayerVisible && playerState.activePost != null) {
-                                        MiniPlayer(
-                                            playerState = playerState,
-                                            onExpand = { viewModel.expandPlayer() },
-                                            onTogglePlayPause = { viewModel.togglePlayPause() },
-                                            onClose = { viewModel.closePlayer() }
-                                        )
+                                SatisfyBottomNavigation(
+                                    currentTab = currentTab,
+                                    onTabSelected = { tab ->
+                                        viewModel.currentTab.value = tab
                                     }
-
-                                    SatisfyBottomNavigation(
-                                        currentTab = currentTab,
-                                        onTabSelected = { tab ->
-                                            viewModel.currentTab.value = tab
-                                        }
-                                    )
-                                }
+                                )
                             }
                         }
                     ) { innerPadding ->
@@ -227,7 +242,7 @@ class MainActivity : ComponentActivity() {
                                         initialType = uploadType,
                                         uploadProcessingState = uploadProcessingState,
                                         onDismissProcessingModal = { viewModel.resetUploadState() },
-                                        onPublish = { type, title, desc, cat, tags, thumb, media, duration ->
+                                        onPublish = { type, title, desc, cat, tags, thumb, media, duration, sizeBytes ->
                                             viewModel.submitUpload(
                                                 type = type,
                                                 title = title,
@@ -236,7 +251,8 @@ class MainActivity : ComponentActivity() {
                                                 tags = tags,
                                                 thumbnailUrl = thumb,
                                                 mediaUrl = media,
-                                                customDuration = duration
+                                                customDuration = duration,
+                                                fileSizeBytes = sizeBytes
                                             )
                                         },
                                         isUploading = isUploading
@@ -308,13 +324,15 @@ class MainActivity : ComponentActivity() {
                                 }
                                 ScreenTab.PRO_MEMBERSHIP -> {
                                     ProMembershipScreen(
+                                        userProfile = userProfile,
                                         isPro = isUserPro,
                                         subscription = proSubscription,
+                                        activeSubscription = proSubscription,
                                         wallet = userWallet,
                                         userReferralCode = userProfile.referralCode,
                                         onBack = { viewModel.currentTab.value = ScreenTab.PROFILE },
-                                        onPurchasePro = { referrerCode, paymentMethod, onResult ->
-                                            viewModel.purchaseProSubscription(referrerCode, paymentMethod, onResult)
+                                        onPurchasePro = { plan, referrerCode, paymentMethod, onResult ->
+                                            viewModel.purchaseProSubscription(plan, referrerCode, paymentMethod, onResult)
                                         },
                                         onOpenWallet = { viewModel.currentTab.value = ScreenTab.WALLET },
                                         onOpenOwnerChat = { viewModel.currentTab.value = ScreenTab.OWNER_CHAT }
@@ -565,6 +583,20 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // Floating Picture-in-Picture (PiP) Mini Player (Draggable to any corner)
+                    AnimatedVisibility(
+                        visible = playerState.isMiniPlayerVisible && !playerState.isExpanded && playerState.activePost != null,
+                        enter = fadeIn() + scaleIn(initialScale = 0.85f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.85f)
+                    ) {
+                        FloatingMiniPlayer(
+                            playerState = playerState,
+                            onExpand = { viewModel.expandPlayer() },
+                            onTogglePlayPause = { viewModel.togglePlayPause() },
+                            onClose = { viewModel.closePlayer() }
+                        )
+                    }
+
                     // Create Creator Page Dialog
                     if (showCreatePageDialog) {
                         CreatePageDialog(
@@ -699,5 +731,26 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Remove keep-screen-on and pause video playback when user leaves foreground
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        viewModel.pausePlayer()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Stop playback completely to prevent background audio/memory leaks
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        viewModel.pausePlayer()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Release resources and clear all window flags
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        viewModel.closePlayer()
     }
 }

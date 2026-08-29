@@ -21,6 +21,11 @@ data class UserAccountEntity(
     val referralCode: String = "",
     val referredByCode: String? = null,
     val isPro: Boolean = false,
+    val activePlanId: String? = null,
+    val activePlanName: String? = null,
+    val activePlanTier: String? = null,
+    val subscriptionStatus: String = "INACTIVE", // "ACTIVE", "EXPIRED", "INACTIVE"
+    val proStartedAt: Long? = null,
     val proExpiresAt: Long? = null,
     val isWalletFrozen: Boolean = false
 )

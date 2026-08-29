@@ -44,31 +44,64 @@ fun AdminProTabContent(
     ) {
         // Summary Cards
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("PRO Revenue", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("₹${totalRevenue.toInt()}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = SatisfyGold)
-                        Text("₹5 / Subscription", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text("PRO Revenue", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("₹${totalRevenue.toInt()}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = SatisfyGold)
+                            Text("Across all 3 Plans", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text("Active Subscribers", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("$activeCount", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF10B981))
+                            Text("Total Subs: ${subscriptions.size}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
 
+                // 3 Plans Breakdown Row
+                val proCount = remember(subscriptions) { subscriptions.count { it.planId == "plan_pro_5" || it.planTier == "PRO" } }
+                val premiumCount = remember(subscriptions) { subscriptions.count { it.planId == "plan_premium_pro_15" || it.planTier == "PREMIUM_PRO" } }
+                val superPremiumCount = remember(subscriptions) { subscriptions.count { it.planId == "plan_super_premium_pro_25" || it.planTier == "SUPER_PREMIUM_PRO" } }
+
                 Card(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Active Pro Members", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$activeCount", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF10B981))
-                        Text("Total: ${subscriptions.size}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Pro (₹5)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                            Text("$proCount active", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Premium Pro (₹15)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SatisfyGold)
+                            Text("$premiumCount active", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Super Premium (₹25)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF472B6))
+                            Text("$superPremiumCount active", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                        }
                     }
                 }
             }
@@ -119,15 +152,27 @@ fun AdminProTabContent(
                             Icon(
                                 imageVector = Icons.Filled.WorkspacePremium,
                                 contentDescription = null,
-                                tint = SatisfyGold,
+                                tint = when (sub.planTier) {
+                                    "SUPER_PREMIUM_PRO" -> Color(0xFFF472B6)
+                                    "PREMIUM_PRO" -> SatisfyGold
+                                    else -> Color(0xFF60A5FA)
+                                },
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = sub.userName,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
+                            Column {
+                                Text(
+                                    text = sub.userName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "${sub.planName} (${sub.planId})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = SatisfyGold
+                                )
+                            }
                         }
 
                         Surface(
@@ -135,7 +180,7 @@ fun AdminProTabContent(
                             color = if (isActive) Color(0xFF065F46) else Color(0xFF7F1D1D)
                         ) {
                             Text(
-                                text = if (isActive) "ACTIVE" else "EXPIRED / INACTIVE",
+                                text = if (isActive) "ACTIVE" else sub.status,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -145,7 +190,7 @@ fun AdminProTabContent(
                     }
 
                     Text(
-                        text = "Payment: ${sub.paymentId} • Order: ${sub.orderId} • Method: ${sub.paymentMethod}",
+                        text = "Amount: ₹${sub.amount.toInt()} / ${sub.billingPeriod} • Payment: ${sub.paymentId} • Order: ${sub.orderId}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -163,7 +208,7 @@ fun AdminProTabContent(
                             modifier = Modifier.padding(top = 2.dp)
                         ) {
                             Text(
-                                text = "Referred by: ${sub.referrerCode} (₹3.50 Referrer Payout | ₹0.50 PG Fee | ₹1.00 Owner)",
+                                text = "Referred by: ${sub.referrerCode} (₹${String.format(Locale.US, "%.2f", sub.finalReferralPayout)} Referrer 50% Net | ₹${String.format(Locale.US, "%.2f", sub.gatewayFee)} PG Fee | ₹${String.format(Locale.US, "%.2f", sub.ownerRevenueAmount)} Owner 50% Net)",
                                 fontSize = 11.sp,
                                 color = Color(0xFFA5B4FC),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)

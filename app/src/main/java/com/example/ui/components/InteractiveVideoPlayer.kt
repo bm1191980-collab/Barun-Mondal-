@@ -1,6 +1,8 @@
 package com.example.ui.components
 
+import android.app.Activity
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
@@ -32,6 +34,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -146,6 +151,50 @@ fun InteractiveVideoPlayer(
             exoPlayer.removeListener(listener)
             exoPlayer.stop()
             exoPlayer.release()
+        }
+    }
+
+    // Lifecycle observer to pause/stop/release player on app background/exit & prevent background playback
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, exoPlayer) {
+        val window = (context as? Activity)?.window
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    // Stop active playback immediately when leaving foreground
+                    exoPlayer.pause()
+                    window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    exoPlayer.pause()
+                    window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                Lifecycle.Event.ON_DESTROY -> {
+                    exoPlayer.stop()
+                    exoPlayer.release()
+                    window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Dynamic FLAG_KEEP_SCREEN_ON: Keep screen on ONLY during active playback (not paused, not ended, not error)
+    val isActivelyPlaying = playerState.isPlaying && !isPlaybackEnded && playerError == null
+    DisposableEffect(isActivelyPlaying) {
+        val window = (context as? Activity)?.window
+        if (isActivelyPlaying) {
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
@@ -285,6 +334,7 @@ fun InteractiveVideoPlayer(
             },
             update = { playerView ->
                 playerView.player = exoPlayer
+                playerView.keepScreenOn = isActivelyPlaying
             },
             modifier = Modifier.fillMaxSize()
         )

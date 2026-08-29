@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -23,9 +22,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.ProSubscriptionEntity
+import com.example.data.model.SatisfyProPlan
 import com.example.data.model.UserProfile
 import com.example.data.service.PaymentGatewayService
 import com.example.ui.theme.*
@@ -43,7 +44,7 @@ fun ProMembershipScreen(
     userReferralCode: String = userProfile.referralCode,
     allSubscriptions: List<ProSubscriptionEntity> = emptyList(),
     onBack: () -> Unit = {},
-    onPurchasePro: (referralCode: String?, paymentMethod: String, onComplete: (Boolean, String) -> Unit) -> Unit,
+    onPurchasePro: (plan: SatisfyProPlan, referralCode: String?, paymentMethod: String, onComplete: (Boolean, String) -> Unit) -> Unit,
     onOpenWallet: () -> Unit = {},
     onNavigateToWallet: () -> Unit = onOpenWallet,
     onOpenOwnerChat: () -> Unit = {},
@@ -51,21 +52,35 @@ fun ProMembershipScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val effectiveSub = activeSubscription ?: subscription
+    val effectiveIsPro = isPro || (effectiveSub != null && effectiveSub.expiresAt > System.currentTimeMillis())
+    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
+
+    // Active plan detection
+    val currentActivePlan = remember(effectiveSub, effectiveIsPro) {
+        if (effectiveIsPro && effectiveSub != null) {
+            SatisfyProPlan.fromPlanId(effectiveSub.planId)
+        } else {
+            null
+        }
+    }
+
+    // Currently selected plan in UI for viewing/purchasing
+    var selectedPlan by remember(currentActivePlan) {
+        mutableStateOf(currentActivePlan ?: SatisfyProPlan.PRO)
+    }
+
     var showCheckoutDialog by remember { mutableStateOf(false) }
     var referralCodeInput by remember { mutableStateOf("") }
     var selectedPaymentMethod by remember { mutableStateOf("UPI (Google Pay / PhonePe / Paytm)") }
     var isProcessingPayment by remember { mutableStateOf(false) }
     var snackbarMessage by remember { mutableStateOf<String?>(null) }
 
-    val effectiveSub = activeSubscription ?: subscription
-    val effectiveIsPro = isPro || (effectiveSub != null && effectiveSub.expiresAt > System.currentTimeMillis())
-    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("PRO Membership", fontWeight = FontWeight.Bold) },
+                title = { Text("PRO Subscriptions", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -109,13 +124,13 @@ fun ProMembershipScreen(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    Color(0xFF4C1D95), // Deep purple
+                                    Color(0xFF4C1D95),
                                     Color(0xFF2E1065),
                                     MaterialTheme.colorScheme.background
                                 )
                             )
                         )
-                        .padding(horizontal = 20.dp, vertical = 24.dp)
+                        .padding(horizontal = 20.dp, vertical = 22.dp)
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -124,7 +139,7 @@ fun ProMembershipScreen(
                         // Crown Badge
                         Box(
                             modifier = Modifier
-                                .size(64.dp)
+                                .size(60.dp)
                                 .clip(CircleShape)
                                 .background(
                                     Brush.radialGradient(
@@ -138,14 +153,14 @@ fun ProMembershipScreen(
                                 imageVector = Icons.Filled.WorkspacePremium,
                                 contentDescription = "Pro Crown",
                                 tint = Color.White,
-                                modifier = Modifier.size(38.dp)
+                                modifier = Modifier.size(36.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "Satisfy PRO Membership",
+                            text = "Satisfy PRO Plans",
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = (-0.5).sp
@@ -157,7 +172,7 @@ fun ProMembershipScreen(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Text(
-                            text = "₹5 / Month • Premium Access • Direct Owner Chat",
+                            text = "Choose from 3 monthly plans: Pro, Premium Pro, or Super Premium Pro",
                             style = MaterialTheme.typography.bodyMedium,
                             color = SatisfyGoldLight,
                             textAlign = TextAlign.Center
@@ -165,15 +180,15 @@ fun ProMembershipScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Status Card (Active / Inactive)
+                        // Active Plan Status Banner
                         Card(
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (isPro) Color(0xFF064E3B).copy(alpha = 0.8f) else Color(0xFF1E1B4B).copy(alpha = 0.85f)
+                                containerColor = if (effectiveIsPro) Color(0xFF064E3B).copy(alpha = 0.85f) else Color(0xFF1E1B4B).copy(alpha = 0.85f)
                             ),
                             border = BorderStroke(
                                 1.dp,
-                                if (isPro) Color(0xFF10B981) else SatisfyGold.copy(alpha = 0.5f)
+                                if (effectiveIsPro) Color(0xFF10B981) else SatisfyGold.copy(alpha = 0.5f)
                             ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -186,77 +201,270 @@ fun ProMembershipScreen(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = if (isPro) Icons.Filled.CheckCircle else Icons.Filled.Stars,
+                                        imageVector = if (effectiveIsPro) Icons.Filled.CheckCircle else Icons.Filled.Stars,
                                         contentDescription = null,
-                                        tint = if (isPro) Color(0xFF34D399) else SatisfyGold,
+                                        tint = if (effectiveIsPro) Color(0xFF34D399) else SatisfyGold,
                                         modifier = Modifier.size(28.dp)
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
                                         Text(
-                                            text = if (isPro) "PRO Active" else "PRO Status: Free User",
+                                            text = if (effectiveIsPro && currentActivePlan != null) "${currentActivePlan.planName} Active" else "Subscription: Free Account",
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 16.sp,
+                                            fontSize = 15.sp,
                                             color = Color.White
                                         )
-                                        if (isPro && activeSubscription != null) {
+                                        if (effectiveIsPro && effectiveSub != null) {
                                             Text(
-                                                text = "Expires: ${dateFormat.format(Date(activeSubscription.expiresAt))}",
-                                                fontSize = 12.sp,
+                                                text = "ID: ${effectiveSub.planId} • Expires: ${dateFormat.format(Date(effectiveSub.expiresAt))}",
+                                                fontSize = 11.sp,
                                                 color = Color(0xFFA7F3D0)
                                             )
                                         } else {
                                             Text(
-                                                text = "Upgrade for just ₹5/mo to unlock all benefits",
-                                                fontSize = 12.sp,
+                                                text = "Select a plan below to upgrade your experience",
+                                                fontSize = 11.sp,
                                                 color = Color.White.copy(alpha = 0.7f)
                                             )
                                         }
                                     }
                                 }
 
-                                if (isPro) {
-                                    OutlinedButton(
-                                        onClick = { showCheckoutDialog = true },
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                if (effectiveIsPro && currentActivePlan != null) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = SatisfyGold,
+                                        contentColor = Color.Black
                                     ) {
-                                        Text("Renew", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = "₹${currentActivePlan.priceInr.toInt()}/mo",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
                                     }
                                 }
-                            }
-                        }
-
-                        if (!isPro) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = { showCheckoutDialog = true },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(50.dp)
-                                    .shadow(8.dp, RoundedCornerShape(14.dp)),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = SatisfyGold,
-                                    contentColor = Color.Black
-                                )
-                            ) {
-                                Icon(Icons.Filled.Bolt, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Get PRO for ₹5 / Month",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
                             }
                         }
                     }
                 }
             }
 
-            // ₹5 Payment Distribution Flow Card
+            // 3 Subscription Plans Tier Selection
             item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "AVAILABLE MONTHLY PLANS",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    // Plan Cards
+                    SatisfyProPlan.entries.forEach { plan ->
+                        val isCurrentActive = effectiveIsPro && currentActivePlan == plan
+                        val isSelected = selectedPlan == plan
+                        val isUpgrade = currentActivePlan != null && plan.tierLevel > currentActivePlan.tierLevel
+                        val isDowngrade = currentActivePlan != null && plan.tierLevel < currentActivePlan.tierLevel
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedPlan = plan },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected) {
+                                    when (plan) {
+                                        SatisfyProPlan.SUPER_PREMIUM_PRO -> Color(0xFF3B1564)
+                                        SatisfyProPlan.PREMIUM_PRO -> Color(0xFF1E293B)
+                                        SatisfyProPlan.PRO -> Color(0xFF172554)
+                                    }
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                }
+                            ),
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) {
+                                    when (plan) {
+                                        SatisfyProPlan.SUPER_PREMIUM_PRO -> Color(0xFFEC4899)
+                                        SatisfyProPlan.PREMIUM_PRO -> SatisfyGold
+                                        SatisfyProPlan.PRO -> Color(0xFF3B82F6)
+                                    }
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                }
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Top Row: Plan Name, ID & Price
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        RadioButton(
+                                            selected = isSelected,
+                                            onClick = { selectedPlan = plan }
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = plan.planName,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 16.sp,
+                                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (isCurrentActive) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = Color(0xFF10B981)
+                                                    ) {
+                                                        Text(
+                                                            text = "ACTIVE",
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = Color.White,
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Text(
+                                                text = "ID: ${plan.planId}",
+                                                fontSize = 10.sp,
+                                                color = if (isSelected) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = "₹${plan.priceInr.toInt()}",
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = when (plan) {
+                                                SatisfyProPlan.SUPER_PREMIUM_PRO -> Color(0xFFF472B6)
+                                                SatisfyProPlan.PREMIUM_PRO -> SatisfyGold
+                                                SatisfyProPlan.PRO -> Color(0xFF60A5FA)
+                                            }
+                                        )
+                                        Text(
+                                            text = plan.billingPeriod,
+                                            fontSize = 11.sp,
+                                            color = if (isSelected) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = plan.tagLine,
+                                    fontSize = 12.sp,
+                                    color = if (isSelected) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                HorizontalDivider(
+                                    color = if (isSelected) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                    thickness = 0.5.dp
+                                )
+
+                                // Features List
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    plan.features.forEach { feat ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = null,
+                                                tint = when (plan) {
+                                                    SatisfyProPlan.SUPER_PREMIUM_PRO -> Color(0xFFF472B6)
+                                                    SatisfyProPlan.PREMIUM_PRO -> SatisfyGold
+                                                    SatisfyProPlan.PRO -> Color(0xFF34D399)
+                                                },
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = feat,
+                                                fontSize = 12.sp,
+                                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Action Button
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Button(
+                                    onClick = {
+                                        selectedPlan = plan
+                                        showCheckoutDialog = true
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = when {
+                                            isCurrentActive -> Color(0xFF059669)
+                                            plan == SatisfyProPlan.SUPER_PREMIUM_PRO -> Color(0xFFDB2777)
+                                            plan == SatisfyProPlan.PREMIUM_PRO -> SatisfyGold
+                                            else -> Color(0xFF2563EB)
+                                        },
+                                        contentColor = if (plan == SatisfyProPlan.PREMIUM_PRO && !isCurrentActive) Color.Black else Color.White
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = when {
+                                            isCurrentActive -> Icons.Filled.Autorenew
+                                            isUpgrade -> Icons.Filled.TrendingUp
+                                            isDowngrade -> Icons.Filled.TrendingDown
+                                            else -> Icons.Filled.Bolt
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = when {
+                                            isCurrentActive -> "Renew ${plan.planName} (₹${plan.priceInr.toInt()}/mo)"
+                                            isUpgrade -> "Upgrade to ${plan.planName} (₹${plan.priceInr.toInt()}/mo)"
+                                            isDowngrade -> "Switch to ${plan.planName} (₹${plan.priceInr.toInt()}/mo)"
+                                            else -> "Activate ${plan.planName} (₹${plan.priceInr.toInt()}/mo)"
+                                        },
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Dynamic 50/50 Revenue Split Workflow Card for selected plan
+            item {
+                val settlement = remember(selectedPlan) {
+                    PaymentGatewayService.calculateCommissionSplit(
+                        plan = selectedPlan,
+                        customGatewayFee = selectedPlan.gatewayFeeInr,
+                        hasReferral = true
+                    )
+                }
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -272,13 +480,13 @@ fun ProMembershipScreen(
                             Icon(
                                 imageVector = Icons.Filled.AccountBalanceWallet,
                                 contentDescription = null,
-                                tint = SatisfyRed,
+                                tint = SatisfyGold,
                                 modifier = Modifier.size(20.dp)
                             )
                             Text(
-                                text = "₹5 Payment & Referral Split Workflow",
+                                text = "${selectedPlan.planName} 50/50 Split Workflow",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -290,11 +498,11 @@ fun ProMembershipScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Step 1: User pays ₹5
+                            // User pays
                             SplitNode(
                                 title = "User Pays",
-                                amount = "₹5",
-                                subtitle = "Pro Monthly",
+                                amount = "₹${selectedPlan.priceInr.toInt()}",
+                                subtitle = "Monthly Gross",
                                 icon = Icons.Filled.CreditCard,
                                 color = Color(0xFF6366F1)
                             )
@@ -303,14 +511,14 @@ fun ProMembershipScreen(
                                 imageVector = Icons.Filled.ArrowForward,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
 
-                            // Step 2: Referrer gets ₹4
+                            // Referrer gets 50% net
                             SplitNode(
-                                title = "Referrer Gets",
-                                amount = "₹4",
-                                subtitle = "Instant Wallet",
+                                title = "Referrer (50%)",
+                                amount = "₹${String.format(Locale.US, "%.2f", settlement.finalReferralPayout)}",
+                                subtitle = "Net Wallet",
                                 icon = Icons.Filled.CardGiftcard,
                                 color = Color(0xFF10B981)
                             )
@@ -322,121 +530,24 @@ fun ProMembershipScreen(
                                 modifier = Modifier.size(14.dp)
                             )
 
-                            // Step 3: Owner gets ₹1
+                            // Owner gets 50% net
                             SplitNode(
-                                title = "App Owner",
-                                amount = "₹1",
+                                title = "Owner (50%)",
+                                amount = "₹${String.format(Locale.US, "%.2f", settlement.ownerCommission)}",
                                 subtitle = "Net Revenue",
                                 icon = Icons.Filled.AccountBalance,
                                 color = Color(0xFFF59E0B)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "ℹ️ Note: Payment gateway charges & taxes, if applicable, are handled according to the selected payment gateway provider.",
+                            text = "ℹ️ ₹${selectedPlan.priceInr.toInt()} Gross - ₹${String.format(Locale.US, "%.2f", settlement.gatewayFee)} Gateway Fee = ₹${String.format(Locale.US, "%.2f", settlement.netSettledFromGateway)} Net Split equally (50% Referrer | 50% Owner).",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 15.sp
                         )
-                    }
-                }
-            }
-
-            // Pro User Benefits Grid
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                ) {
-                    Text(
-                        text = "PRO USER BENEFITS",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp,
-                        letterSpacing = 1.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    val benefits = listOf(
-                        Triple(
-                            Icons.Filled.Forum,
-                            "Direct Chat with App Owner",
-                            "1-to-1 VIP priority messaging with the app creator/admin team."
-                        ),
-                        Triple(
-                            Icons.Filled.Verified,
-                            "PRO Gold Badge",
-                            "Prominent verified PRO badge displayed on your profile & videos."
-                        ),
-                        Triple(
-                            Icons.Filled.LockOpen,
-                            "Access to Premium Content",
-                            "Unlock full HD & exclusive videos designated as PRO / Premium."
-                        ),
-                        Triple(
-                            Icons.Filled.AccountBalanceWallet,
-                            "Referral & Earnings Hub",
-                            "Earn ₹4 per referred friend who upgrades to Pro. Withdraw anytime."
-                        ),
-                        Triple(
-                            Icons.Filled.Hd,
-                            "Ultra 4K & High Bitrate",
-                            "Smooth crystal 60fps playback with maximum visual clarity."
-                        ),
-                        Triple(
-                            Icons.Filled.Headphones,
-                            "Priority Creator Support",
-                            "Direct verification requests and fast-track upload approvals."
-                        )
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        benefits.forEach { (icon, title, desc) ->
-                            Card(
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = title,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = desc,
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -471,7 +582,7 @@ fun ProMembershipScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = if (isPro) "Chat 1-on-1 Now" else "Pro VIP Feature",
+                                text = if (effectiveIsPro) "Chat 1-on-1 VIP" else "PRO Feature",
                                 fontSize = 11.sp,
                                 color = Color(0xFFC7D2FE)
                             )
@@ -500,7 +611,7 @@ fun ProMembershipScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = "Earn ₹4 / Invite",
+                                text = "50% Referral Share",
                                 fontSize = 11.sp,
                                 color = Color(0xFFA7F3D0)
                             )
@@ -547,7 +658,7 @@ fun ProMembershipScreen(
                                             fontSize = 13.sp
                                         )
                                         Text(
-                                            text = "ID: ${sub.paymentId} • ${dateFormat.format(Date(sub.startedAt))}",
+                                            text = "Plan: ${sub.planId} • ${dateFormat.format(Date(sub.startedAt))}",
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -594,29 +705,28 @@ fun ProMembershipScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Pro Membership Checkout",
+                                text = "Activate ${selectedPlan.planName}",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
                             )
                             Text(
-                                text = "₹5.00 for 30 Days Access",
+                                text = "₹${selectedPlan.priceInr.toInt()}.00 / month • 30 Days Access",
                                 fontSize = 13.sp,
                                 color = SatisfyGold,
                                 fontWeight = FontWeight.Bold
                             )
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(SatisfyGold.copy(alpha = 0.2f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = SatisfyGold.copy(alpha = 0.2f)
                         ) {
                             Text(
-                                text = "30 DAYS",
+                                text = selectedPlan.planId,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = SatisfyGold
+                                color = SatisfyGold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
                     }
@@ -627,8 +737,8 @@ fun ProMembershipScreen(
                     OutlinedTextField(
                         value = referralCodeInput,
                         onValueChange = { referralCodeInput = it.uppercase() },
-                        label = { Text("Got a Referral Code? (Optional)") },
-                        placeholder = { Text("e.g. APP12345") },
+                        label = { Text("Referral Code (Optional)") },
+                        placeholder = { Text("e.g. SATISFY100") },
                         singleLine = true,
                         leadingIcon = {
                             Icon(Icons.Filled.CardGiftcard, contentDescription = null, tint = SatisfyGold)
@@ -660,22 +770,25 @@ fun ProMembershipScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(
-                                        selected = selectedPaymentMethod == method,
-                                        onClick = { selectedPaymentMethod = method }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(text = method, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                }
+                                RadioButton(
+                                    selected = selectedPaymentMethod == method,
+                                    onClick = { selectedPaymentMethod = method }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = method, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
 
-                    // Split transparency note
+                    // Dynamic Split transparency note
+                    val modalSettlement = PaymentGatewayService.calculateCommissionSplit(
+                        plan = selectedPlan,
+                        customGatewayFee = selectedPlan.gatewayFeeInr,
+                        hasReferral = referralCodeInput.isNotBlank()
+                    )
+
                     Card(
                         shape = RoundedCornerShape(8.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
@@ -684,7 +797,7 @@ fun ProMembershipScreen(
                             Icon(Icons.Filled.Info, contentDescription = null, tint = SatisfyGold, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "₹5 Payment Breakdown: ₹4 to Referrer + ₹1 to App Owner (Taxes/gateway charges apply as per provider).",
+                                text = "₹${selectedPlan.priceInr.toInt()} Payment: ₹${String.format(Locale.US, "%.2f", modalSettlement.finalReferralPayout)} Referrer Payout (50% net) + ₹${String.format(Locale.US, "%.2f", modalSettlement.ownerCommission)} Owner (50% net).",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -698,6 +811,7 @@ fun ProMembershipScreen(
                         onClick = {
                             isProcessingPayment = true
                             onPurchasePro(
+                                selectedPlan,
                                 referralCodeInput.ifBlank { null },
                                 selectedPaymentMethod
                             ) { success, msg ->
@@ -723,11 +837,11 @@ fun ProMembershipScreen(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text("Verifying Payment on Server...", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Verifying Payment with Gateway...", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         } else {
                             Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Pay ₹5.00 Securely & Activate PRO", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("Pay ₹${selectedPlan.priceInr.toInt()}.00 & Activate ${selectedPlan.planName}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -758,8 +872,8 @@ private fun SplitNode(
             Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
         }
         Spacer(modifier = Modifier.height(6.dp))
-        Text(text = title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text = amount, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = color)
-        Text(text = subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = title, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text = amount, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = color)
+        Text(text = subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

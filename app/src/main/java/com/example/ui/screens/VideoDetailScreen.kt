@@ -66,9 +66,13 @@ fun VideoDetailScreen(
         relatedVideos.firstOrNull { it.id != post.id } ?: relatedVideos.firstOrNull()
     }
 
-    // Intercept back button when in fullscreen to return to normal mode
-    BackHandler(enabled = playerState.isFullscreen) {
-        onToggleFullscreen()
+    // Intercept back button: if in fullscreen, exit fullscreen; otherwise minimize to Floating Mini Player
+    BackHandler(enabled = true) {
+        if (playerState.isFullscreen) {
+            onToggleFullscreen()
+        } else {
+            onMinimize()
+        }
     }
 
     if (playerState.isFullscreen) {

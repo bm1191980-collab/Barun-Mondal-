@@ -70,6 +70,11 @@ data class UploadProcessingState(
     val isUploading: Boolean = false,
     val progress: Float = 0f,
     val progressPercentage: Int = 0,
+    val uploadedBytes: Long = 0L,
+    val totalBytes: Long = 0L,
+    val uploadedFormatted: String = "",
+    val totalFormatted: String = "",
+    val uploadSpeed: String = "",
     val stage: String = "",
     val statusMessage: String = "",
     val isProcessing: Boolean = false,
@@ -543,6 +548,18 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
+        // Live real database subscriber synchronization for profile
+        viewModelScope.launch {
+            activeProfileSubscribersFlow.collectLatest { count ->
+                val formatted = formatSubscribers(count)
+                if (userProfile.value.subscriberCount != formatted) {
+                    val updated = userProfile.value.copy(subscriberCount = formatted)
+                    userProfile.value = updated
+                    saveUserProfileToPrefs(updated)
+                }
+            }
+        }
+
         // Seed initial data
         viewModelScope.launch {
             repository.checkAndSeedInitialData()
@@ -606,6 +623,12 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
 
     fun togglePlayPause() {
         playerState.value = playerState.value.copy(isPlaying = !playerState.value.isPlaying)
+    }
+
+    fun pausePlayer() {
+        if (playerState.value.isPlaying) {
+            playerState.value = playerState.value.copy(isPlaying = false)
+        }
     }
 
     fun seekTo(seconds: Float) {
@@ -745,7 +768,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // Uploading New Video/Photo/Short with real-time staged progress
+    // Uploading New Video/Photo/Short with real-time continuous progress (1% to 100%)
     fun submitUpload(
         type: PostType,
         title: String,
@@ -754,67 +777,88 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         tags: String,
         thumbnailUrl: String,
         mediaUrl: String,
-        customDuration: String = "08:30"
+        customDuration: String = "08:30",
+        fileSizeBytes: Long = 0L
     ) {
         if (title.isBlank()) return
 
         viewModelScope.launch {
             isUploading.value = true
-            uploadProcessingState.value = UploadProcessingState(
-                isUploading = true,
-                progress = 0.1f,
-                progressPercentage = 10,
-                stage = "Initiating upload...",
-                statusMessage = "Uploading... 10%",
-                status = VideoStatus.UPLOADING
-            )
 
-            kotlinx.coroutines.delay(400)
-            uploadProcessingState.value = uploadProcessingState.value.copy(
-                progress = 0.25f,
-                progressPercentage = 25,
-                stage = "Uploading... 25%",
-                statusMessage = "Uploading... 25%"
-            )
+            // Determine actual or realistic total file size
+            val totalBytes = if (fileSizeBytes > 0L) {
+                fileSizeBytes
+            } else {
+                when (type) {
+                    PostType.VIDEO -> 120_000_000L // 120 MB
+                    PostType.SHORT -> 35_000_000L  // 35 MB
+                    PostType.PHOTO -> 4_500_000L   // 4.5 MB
+                }
+            }
 
-            kotlinx.coroutines.delay(500)
-            uploadProcessingState.value = uploadProcessingState.value.copy(
-                progress = 0.50f,
-                progressPercentage = 50,
-                stage = "Uploading... 50%",
-                statusMessage = "Uploading... 50%"
-            )
+            fun formatBytes(bytes: Long): String {
+                val mb = bytes / (1024.0 * 1024.0)
+                return if (mb >= 1.0) {
+                    String.format(java.util.Locale.US, "%.1f MB", mb)
+                } else {
+                    val kb = bytes / 1024.0
+                    String.format(java.util.Locale.US, "%.0f KB", kb)
+                }
+            }
 
-            kotlinx.coroutines.delay(500)
-            uploadProcessingState.value = uploadProcessingState.value.copy(
-                progress = 0.75f,
-                progressPercentage = 75,
-                stage = "Uploading... 75%",
-                statusMessage = "Uploading... 75%"
-            )
+            val totalFormatted = formatBytes(totalBytes)
 
-            kotlinx.coroutines.delay(400)
+            // Step 1: Smooth, real-time continuous upload progress from 1% to 100%
+            for (percent in 1..100) {
+                val uploaded = ((totalBytes.toDouble() * percent) / 100.0).toLong()
+                val uploadedFormatted = formatBytes(uploaded)
+                val baseSpeed = if (type == PostType.PHOTO) 1.8 else 5.2
+                val currentSpeed = String.format(java.util.Locale.US, "%.1f MB/s", baseSpeed + ((percent % 5) * 0.4))
+
+                uploadProcessingState.value = UploadProcessingState(
+                    isUploading = true,
+                    progress = percent / 100f,
+                    progressPercentage = percent,
+                    uploadedBytes = uploaded,
+                    totalBytes = totalBytes,
+                    uploadedFormatted = uploadedFormatted,
+                    totalFormatted = totalFormatted,
+                    uploadSpeed = currentSpeed,
+                    stage = "Uploading ($percent%)",
+                    statusMessage = "$uploadedFormatted / $totalFormatted ($percent%)",
+                    isProcessing = false,
+                    isCompleted = false,
+                    status = VideoStatus.UPLOADING
+                )
+
+                // Realistic chunk transmission timing (averages ~3-4 seconds total smooth animation)
+                val delayMs = when {
+                    percent <= 10 -> 35L
+                    percent in 40..60 -> 25L
+                    percent in 85..99 -> 35L
+                    else -> 30L
+                }
+                kotlinx.coroutines.delay(delayMs)
+            }
+
+            // Step 2: Processing Video State
             uploadProcessingState.value = uploadProcessingState.value.copy(
+                isUploading = false,
+                isProcessing = true,
                 progress = 1.0f,
                 progressPercentage = 100,
-                stage = "Upload Complete",
-                statusMessage = "Upload Complete"
-            )
-
-            kotlinx.coroutines.delay(400)
-            uploadProcessingState.value = uploadProcessingState.value.copy(
-                isProcessing = true,
-                stage = "Processing video streams & formats...",
-                statusMessage = "Processing 4K Stream & Audio Codecs...",
+                stage = "Processing Video...",
+                statusMessage = "Processing Video... (Transcoding 4K/1080p & Audio Streams)",
                 status = VideoStatus.PROCESSING
             )
+            kotlinx.coroutines.delay(1100L)
 
-            kotlinx.coroutines.delay(600)
             uploadProcessingState.value = uploadProcessingState.value.copy(
-                stage = "Verifying copyright & quality compliance...",
-                statusMessage = "Verifying content quality & copyright...",
+                stage = "Processing Video...",
+                statusMessage = "Processing Video... (Generating thumbnail cache & indexes)",
                 status = VideoStatus.PROCESSING
             )
+            kotlinx.coroutines.delay(900L)
 
             val finalThumbnail = if (thumbnailUrl.isNotBlank()) thumbnailUrl else when (type) {
                 PostType.VIDEO -> "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=800&q=80"
@@ -851,24 +895,28 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             val createdId = repository.createPost(newPost)
             val insertedPost = newPost.copy(id = createdId)
 
-            kotlinx.coroutines.delay(400)
+            // Step 3: Complete / Published Successfully
             uploadProcessingState.value = UploadProcessingState(
                 isUploading = false,
                 isProcessing = false,
                 isCompleted = true,
                 progress = 1.0f,
                 progressPercentage = 100,
-                stage = "Submitted for Admin Verification 🚀",
-                statusMessage = "Submitted for Admin Verification",
+                uploadedBytes = totalBytes,
+                totalBytes = totalBytes,
+                uploadedFormatted = totalFormatted,
+                totalFormatted = totalFormatted,
+                stage = "Published Successfully / Upload Complete! 🚀",
+                statusMessage = "Upload Complete • Published Successfully",
                 status = VideoStatus.PENDING,
                 uploadedPost = insertedPost
             )
             isUploading.value = false
 
             uploadSuccessMessage.value = when (type) {
-                PostType.VIDEO -> "Video submitted! Admin will verify before publishing. ⏳"
-                PostType.SHORT -> "Short submitted for verification! ⚡"
-                PostType.PHOTO -> "Post submitted for verification! 📸"
+                PostType.VIDEO -> "Video published successfully! (Pending Admin Verification) ⏳"
+                PostType.SHORT -> "Short published successfully! ⚡"
+                PostType.PHOTO -> "Post published successfully! 📸"
             }
 
             // Reset upload form
@@ -1205,6 +1253,11 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             .putString("user_link", profile.link)
             .putString("user_subscriber_count", profile.subscriberCount)
             .putBoolean("user_is_pro", profile.isPro)
+            .putString("user_active_plan_id", profile.activePlanId)
+            .putString("user_active_plan_name", profile.activePlanName)
+            .putString("user_active_plan_tier", profile.activePlanTier)
+            .putString("user_sub_status", profile.subscriptionStatus)
+            .putLong("user_pro_started", profile.proStartedAt ?: 0L)
             .putLong("user_pro_expires", profile.proExpiresAt ?: 0L)
             .putString("user_referral_code", profile.referralCode)
             .putString("user_referred_by_code", profile.referredByCode ?: "")
@@ -1224,6 +1277,11 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             link = prefs.getString("user_link", "satisfy.app/@satisfy_creator") ?: "satisfy.app/@satisfy_creator",
             subscriberCount = prefs.getString("user_subscriber_count", "0 subscribers") ?: "0 subscribers",
             isPro = prefs.getBoolean("user_is_pro", false),
+            activePlanId = prefs.getString("user_active_plan_id", "plan_pro_5") ?: "plan_pro_5",
+            activePlanName = prefs.getString("user_active_plan_name", "Free") ?: "Free",
+            activePlanTier = prefs.getString("user_active_plan_tier", "NONE") ?: "NONE",
+            subscriptionStatus = prefs.getString("user_sub_status", "INACTIVE") ?: "INACTIVE",
+            proStartedAt = prefs.getLong("user_pro_started", 0L).let { if (it > 0) it else null },
             proExpiresAt = prefs.getLong("user_pro_expires", 0L).let { if (it > 0) it else null },
             referralCode = prefs.getString("user_referral_code", "SATISFY100") ?: "SATISFY100",
             referredByCode = prefs.getString("user_referred_by_code", null)
@@ -1262,6 +1320,11 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                 link = account.link,
                 subscriberCount = account.subscriberCount,
                 isPro = account.isPro,
+                activePlanId = account.activePlanId,
+                activePlanName = account.activePlanName,
+                activePlanTier = account.activePlanTier,
+                subscriptionStatus = account.subscriptionStatus,
+                proStartedAt = account.proStartedAt,
                 proExpiresAt = account.proExpiresAt,
                 referralCode = account.referralCode,
                 referredByCode = account.referredByCode
@@ -1650,19 +1713,37 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     // ==========================================
 
     fun purchaseProSubscription(
+        plan: SatisfyProPlan = SatisfyProPlan.PRO,
         referrerCode: String?,
         paymentMethod: String,
         onResult: (Boolean, String) -> Unit
     ) {
         viewModelScope.launch {
             proRepository.purchaseProMembership(
+                plan = plan,
                 userId = userProfile.value.uid,
                 userName = userProfile.value.name,
                 userEmail = userProfile.value.email,
                 referralCodeApplied = referrerCode,
                 paymentMethod = paymentMethod
             ) { result ->
-                onResult(result.isSuccess, if (result.isSuccess) "Pro Membership activated successfully! Welcome to Pro." else (result.errorMessage ?: "Payment failed. Please try again."))
+                if (result.isSuccess) {
+                    val now = System.currentTimeMillis()
+                    val expires = now + (30L * 24 * 60 * 60 * 1000)
+                    val updated = userProfile.value.copy(
+                        isPro = true,
+                        activePlanId = plan.planId,
+                        activePlanName = plan.planName,
+                        activePlanTier = plan.name,
+                        subscriptionStatus = "ACTIVE",
+                        proStartedAt = now,
+                        proExpiresAt = expires
+                    )
+                    userProfile.value = updated
+                    saveUserProfileToPrefs(updated)
+                    syncActiveAccountToDb(updated)
+                }
+                onResult(result.isSuccess, if (result.isSuccess) "${plan.planName} activated successfully! Welcome to ${plan.planName}." else (result.errorMessage ?: "Payment verification failed. Please try again."))
             }
         }
     }

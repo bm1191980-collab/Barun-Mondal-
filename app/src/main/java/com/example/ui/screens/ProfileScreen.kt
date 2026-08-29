@@ -516,7 +516,12 @@ fun ProfileScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Box(
                                         modifier = Modifier
                                             .size(38.dp)
@@ -539,12 +544,12 @@ fun ProfileScreen(
 
                                     Spacer(modifier = Modifier.width(10.dp))
 
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f, fill = false)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                text = if (isPro) "PRO VIP MEMBER" else "PRO MEMBERSHIP",
+                                                text = if (isPro) (if (userProfile.activePlanName.isNotBlank()) userProfile.activePlanName.uppercase() else "PRO VIP MEMBER") else "PRO UPGRADE (OPTIONAL)",
                                                 fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 15.sp,
+                                                fontSize = 14.sp,
                                                 color = if (isPro) SatisfyGold else MaterialTheme.colorScheme.onSurface
                                             )
                                             if (isPro) {
@@ -553,26 +558,31 @@ fun ProfileScreen(
                                             }
                                         }
                                         Text(
-                                            text = if (isPro) "₹5/Month Active • All Benefits Unlocked" else "₹5/Month • Earn ₹4 per Referral",
+                                            text = if (isPro) "${userProfile.activePlanName} Active • Referral Income Unlocked" else "Free Plan Active • Pro unlocks 50% Referral Income",
                                             fontSize = 11.sp,
-                                            color = if (isPro) Color(0xFFE0E7FF) else MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (isPro) Color(0xFFE0E7FF) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
 
                                 Button(
                                     onClick = onNavigateToPro,
-                                    shape = RoundedCornerShape(20.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = SatisfyGold,
-                                        contentColor = Color.Black
+                                        containerColor = Color(0xFF16A34A),
+                                        contentColor = Color.White
                                     ),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
                                     Text(
-                                        text = if (isPro) "Manage" else "Join PRO",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
+                                        text = if (isPro) "Manage" else "Join Pro",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }

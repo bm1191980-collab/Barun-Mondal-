@@ -223,6 +223,104 @@ fun WalletScreen(
                 }
             }
 
+            // PRO-ONLY Referral Status Banner
+            item {
+                if (!isPro) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF312E81).copy(alpha = 0.85f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = null,
+                                    tint = SatisfyGold,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    text = "Referral Income is a PRO-ONLY Feature",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "• Free users can use all normal Satisfy features for free.\n• Referral commission is unlocked on Pro plans (₹5/mo Pro, ₹15/mo Premium Pro, ₹25/mo Super Premium Pro).\n• Upgrade to activate your referral earnings and receive 50% net commission directly in your wallet.",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.9f),
+                                lineHeight = 17.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Button(
+                                onClick = onNavigateToPro,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SatisfyGold,
+                                    contentColor = Color.Black
+                                )
+                            ) {
+                                Icon(Icons.Filled.Stars, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Upgrade to Unlock Referral Income", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF064E3B).copy(alpha = 0.6f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Verified,
+                                contentDescription = null,
+                                tint = Color(0xFF34D399),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Active Pro Member • Referral Income Enabled",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFA7F3D0)
+                                )
+                                Text(
+                                    text = "You earn 50% net commission on every referral upgrade to your wallet.",
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Referral Link & Code Share Card
             item {
                 Card(
@@ -253,7 +351,11 @@ fun WalletScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "When a friend joins with your code and buys ₹5 PRO, you get ₹4.00 base commission (₹3.50 net after ₹0.50 standard payment processing fee).",
+                            text = if (isPro) {
+                                "When a friend joins with your code and upgrades to any Pro plan, you earn 50% net commission (e.g. ₹3.50 net on ₹5 Pro, ₹7.00 net on ₹15 Premium Pro, ₹11.50 net on ₹25 Super Premium Pro) after standard payment gateway fees."
+                            } else {
+                                "Pro subscription is optional. Free users can enjoy all app features. Upgrade to Pro to earn 50% net referral commission when friends join and subscribe."
+                            },
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 16.sp

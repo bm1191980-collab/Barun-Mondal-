@@ -43,7 +43,7 @@ import com.example.ui.viewmodel.UploadProcessingState
 @Composable
 fun UploadScreen(
     categories: List<String>,
-    onPublish: (type: PostType, title: String, description: String, category: String, tags: String, thumbUrl: String, mediaUrl: String, duration: String) -> Unit,
+    onPublish: (type: PostType, title: String, description: String, category: String, tags: String, thumbUrl: String, mediaUrl: String, duration: String, fileSizeBytes: Long) -> Unit,
     isUploading: Boolean,
     modifier: Modifier = Modifier,
     initialType: PostType = PostType.VIDEO,
@@ -62,6 +62,7 @@ fun UploadScreen(
     var selectedGalleryUri by remember { mutableStateOf<Uri?>(null) }
     var selectedGalleryFileName by remember { mutableStateOf("") }
     var selectedGalleryFileSize by remember { mutableStateOf("") }
+    var selectedGalleryFileSizeBytes by remember { mutableLongStateOf(0L) }
     var selectedCustomThumbnailUri by remember { mutableStateOf<Uri?>(null) }
 
     var selectedPresetImage by remember {
@@ -90,6 +91,7 @@ fun UploadScreen(
                     }
                     if (sizeIndex != -1) {
                         val sizeBytes = cursor.getLong(sizeIndex)
+                        selectedGalleryFileSizeBytes = sizeBytes
                         val mb = sizeBytes / (1024.0 * 1024.0)
                         selectedGalleryFileSize = if (mb >= 1.0) {
                             String.format("%.1f MB", mb)
@@ -509,31 +511,145 @@ fun UploadScreen(
 
                         // Custom Thumbnail Picker Option for Videos
                         if (selectedType != PostType.PHOTO) {
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            Spacer(modifier = Modifier.height(12.dp))
+
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Image,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Custom Video Thumbnail",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (selectedCustomThumbnailUri != null) SatisfyGreen.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = if (selectedCustomThumbnailUri != null) "✓ CUSTOM ATTACHED" else "GALLERY READY",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (selectedCustomThumbnailUri != null) SatisfyGreen else MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (selectedCustomThumbnailUri != null) {
+                                // Selected Thumbnail Preview Card
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 2.dp
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 80.dp, height = 48.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color.Black)
+                                        ) {
+                                            AsyncImage(
+                                                model = selectedCustomThumbnailUri,
+                                                contentDescription = "Custom Thumbnail",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Custom Gallery Cover",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Will be used as video thumbnail",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = {
+                                                    customThumbnailPickerLauncher.launch(
+                                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                                    )
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Edit,
+                                                    contentDescription = "Change Thumbnail",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { selectedCustomThumbnailUri = null },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Close,
+                                                    contentDescription = "Remove Thumbnail",
+                                                    tint = SatisfyRed,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
                                         customThumbnailPickerLauncher.launch(
                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                         )
-                                    }
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Image,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (selectedCustomThumbnailUri != null) "Custom Thumbnail: Attached ✓" else "Select Custom Thumbnail from Gallery (Optional)",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (selectedCustomThumbnailUri != null) SatisfyGreen else MaterialTheme.colorScheme.primary
-                                )
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(42.dp),
+                                    shape = RoundedCornerShape(20.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.AddPhotoAlternate,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Select Thumbnail from Gallery",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
                     }
@@ -938,7 +1054,8 @@ fun UploadScreen(
                             tags,
                             persistentThumbUrl,
                             persistentMediaUrl,
-                            selectedDuration
+                            selectedDuration,
+                            selectedGalleryFileSizeBytes
                         )
                     },
                     enabled = title.isNotBlank() && !isUploading && !uploadProcessingState.isUploading && !uploadProcessingState.isProcessing && !isShortDurationExceeded,
@@ -995,6 +1112,8 @@ fun UploadScreen(
                     description = ""
                     selectedGalleryUri = null
                     selectedGalleryFileName = ""
+                    selectedGalleryFileSize = ""
+                    selectedGalleryFileSizeBytes = 0L
                     selectedCustomThumbnailUri = null
                     onDismissProcessingModal()
                 }
@@ -1018,7 +1137,7 @@ fun UploadProgressDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(
                             when {
@@ -1041,20 +1160,29 @@ fun UploadProgressDialog(
                             state.isProcessing -> Color(0xFF3B82F6)
                             else -> SatisfyRed
                         },
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = when {
-                        state.isCompleted -> "Submitted for Verification"
-                        state.isProcessing -> "Processing Content..."
-                        else -> "Uploading Media (${state.progressPercentage}%)"
-                    },
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = when {
+                            state.isCompleted -> "Upload Complete"
+                            state.isProcessing -> "Processing Video..."
+                            else -> "Uploading Media (${state.progressPercentage}%)"
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (state.isUploading && state.uploadedFormatted.isNotBlank()) {
+                        Text(
+                            text = "${state.uploadedFormatted} / ${state.totalFormatted} • ${state.uploadSpeed}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         },
         text = {
@@ -1068,8 +1196,8 @@ fun UploadProgressDialog(
                     progress = { state.progress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp)),
                     color = when {
                         state.isCompleted -> Color(0xFF10B981)
                         state.isProcessing -> Color(0xFF3B82F6)
@@ -1078,24 +1206,53 @@ fun UploadProgressDialog(
                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = state.statusMessage.ifBlank { state.stage },
-                        fontSize = 13.sp,
+                        text = when {
+                            state.isCompleted -> "Published Successfully"
+                            state.isProcessing -> "Processing Video..."
+                            state.statusMessage.isNotBlank() -> state.statusMessage
+                            else -> state.stage
+                        },
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = when {
+                            state.isCompleted -> Color(0xFF10B981)
+                            state.isProcessing -> Color(0xFF3B82F6)
+                            else -> MaterialTheme.colorScheme.primary
+                        },
+                        modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        text = "${state.progressPercentage}%",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                when {
+                                    state.isCompleted -> Color(0xFF10B981).copy(alpha = 0.15f)
+                                    state.isProcessing -> Color(0xFF3B82F6).copy(alpha = 0.15f)
+                                    else -> SatisfyRed.copy(alpha = 0.15f)
+                                }
+                            )
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "${state.progressPercentage}%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                state.isCompleted -> Color(0xFF10B981)
+                                state.isProcessing -> Color(0xFF3B82F6)
+                                else -> SatisfyRed
+                            }
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1108,26 +1265,28 @@ fun UploadProgressDialog(
                 ) {
                     Column(
                         modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         StepItem(
                             stepNumber = "1",
-                            title = "Upload Media File",
-                            subtitle = if (state.isUploading) "Uploading data packets..." else "Uploaded 100%",
+                            title = "Upload Media Stream",
+                            subtitle = if (state.isUploading) {
+                                if (state.uploadedFormatted.isNotBlank()) "${state.uploadedFormatted} of ${state.totalFormatted} (${state.progressPercentage}%)" else "Uploading data packets (${state.progressPercentage}%)"
+                            } else "100% Uploaded",
                             isDone = state.isProcessing || state.isCompleted || state.progress >= 1.0f,
                             isActive = state.isUploading
                         )
                         StepItem(
                             stepNumber = "2",
-                            title = "Video Processing & Encoding",
-                            subtitle = if (state.isProcessing) "Optimizing 4K stream..." else if (state.isCompleted) "Processing Complete" else "Waiting...",
+                            title = "Video Processing & Quality Optimization",
+                            subtitle = if (state.isProcessing) "Processing Video... (Transcoding & Audio Stream Optimization)" else if (state.isCompleted) "Processing Complete" else "Waiting for upload...",
                             isDone = state.isCompleted,
                             isActive = state.isProcessing
                         )
                         StepItem(
                             stepNumber = "3",
-                            title = "Pending Admin Verification",
-                            subtitle = if (state.isCompleted) "Awaiting Admin Review & Approval" else "Pending step 2 completion",
+                            title = "Published & Verification",
+                            subtitle = if (state.isCompleted) "Published Successfully • Submitted for Admin Review" else "Pending video processing",
                             isDone = state.isCompleted,
                             isActive = state.isCompleted
                         )
@@ -1154,7 +1313,7 @@ fun UploadProgressDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Your video has been submitted for admin verification. It will be published once approved.",
+                                text = "Your video has been published and submitted for verification. It will appear across feeds and creator studio.",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 lineHeight = 15.sp

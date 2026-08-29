@@ -189,6 +189,9 @@ interface UserAccountDao {
     @Query("SELECT * FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1")
     suspend fun getUserByEmail(email: String): com.example.data.model.UserAccountEntity?
 
+    @Query("SELECT * FROM users WHERE UPPER(referralCode) = UPPER(:code) LIMIT 1")
+    suspend fun getUserByReferralCode(code: String): com.example.data.model.UserAccountEntity?
+
     @Query("SELECT * FROM users WHERE isBanned = 1")
     fun getBannedUsers(): Flow<List<com.example.data.model.UserAccountEntity>>
 
@@ -353,6 +356,15 @@ interface ProSubscriptionDao {
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM pro_subscriptions WHERE paymentStatus = 'SUCCESS'")
     suspend fun getTotalProRevenue(): Double
+
+    @Query("UPDATE pro_subscriptions SET status = :newStatus WHERE userId = :userId AND status = 'ACTIVE'")
+    suspend fun updateActiveSubscriptionsStatus(userId: String, newStatus: String)
+
+    @Query("SELECT COUNT(DISTINCT userId) FROM pro_subscriptions WHERE status = 'ACTIVE' AND expiresAt > :currentTime AND (planTier = :planTier OR planId = :planTier)")
+    suspend fun getActiveUsersCountByPlan(planTier: String, currentTime: Long = System.currentTimeMillis()): Int
+
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM pro_subscriptions WHERE paymentStatus = 'SUCCESS' AND (planTier = :planTier OR planId = :planTier)")
+    suspend fun getRevenueByPlan(planTier: String): Double
 }
 
 @Dao
