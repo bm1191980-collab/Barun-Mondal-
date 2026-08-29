@@ -202,20 +202,11 @@ fun UploadScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CloudUpload,
-                        contentDescription = "Upload",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                com.example.ui.components.SatisfyAnimatedLogo(
+                    size = 40.dp,
+                    isAnimated = true,
+                    withBackgroundBadge = true
+                )
 
                 Spacer(modifier = Modifier.width(12.dp))
 

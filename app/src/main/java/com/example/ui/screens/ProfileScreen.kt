@@ -775,18 +775,20 @@ fun ProfileScreen(
                                         modifier = Modifier.padding(10.dp),
                                         verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Gavel,
-                                            contentDescription = null,
-                                            tint = Color(0xFF3B82F6),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Text(
-                                            text = "Satisfy Rules",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            com.example.ui.components.SatisfyAnimatedLogo(
+                                                size = 18.dp,
+                                                isAnimated = true,
+                                                withBackgroundBadge = false
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Satisfy Rules",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
                                         Text(
                                             text = "Shorts 90s & Policies",
                                             fontSize = 10.sp,

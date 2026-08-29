@@ -194,17 +194,25 @@ fun SatisfyRulesScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = "Satisfy Platform Rules",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        com.example.ui.components.SatisfyAnimatedLogo(
+                            size = 28.dp,
+                            isAnimated = true,
+                            withBackgroundBadge = true
                         )
-                        Text(
-                            text = "Community Standards & Creator Policies",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "Satisfy Platform Rules",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                            Text(
+                                text = "Community Standards & Creator Policies",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
                     }
                 },
                 navigationIcon = {

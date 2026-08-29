@@ -168,20 +168,12 @@ fun MonetizationScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.White.copy(alpha = 0.2f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.MonetizationOn,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
+                                    com.example.ui.components.SatisfyAnimatedLogo(
+                                        size = 38.dp,
+                                        isAnimated = true,
+                                        withBackgroundBadge = true,
+                                        badgeColor = Color.White.copy(alpha = 0.9f)
+                                    )
                                     Column {
                                         Text(
                                             text = "Satisfy Partner Program",

@@ -11,6 +11,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -98,11 +100,29 @@ fun InteractiveVideoPlayer(
     // Auto-hide controls timer
     var controlsVisible by remember { mutableStateOf(true) }
 
+    // Pinch-to-Zoom and Pan states in Fullscreen
+    var zoomScale by remember { mutableFloatStateOf(1f) }
+    var panOffsetX by remember { mutableFloatStateOf(0f) }
+    var panOffsetY by remember { mutableFloatStateOf(0f) }
+
+    // Reset zoom when exiting fullscreen or changing active video
+    LaunchedEffect(playerState.isFullscreen, post.id) {
+        if (!playerState.isFullscreen) {
+            zoomScale = 1f
+            panOffsetX = 0f
+            panOffsetY = 0f
+        }
+    }
+
     // ExoPlayer instance configured with custom DataSource & MediaSource
     val exoPlayer = remember(post.id, post.mediaUrl, retryCount) {
         SatisfyVideoEngine.createExoPlayer(context).apply {
             val mediaItem = SatisfyVideoEngine.createMediaItem(post.mediaUrl, post.type)
             setMediaItem(mediaItem)
+            val initialSeekMs = (playerState.currentPositionSeconds * 1000f).toLong().coerceAtLeast(0L)
+            if (initialSeekMs > 0L) {
+                seekTo(initialSeekMs)
+            }
             playWhenReady = playerState.isPlaying
             volume = if (playerState.isMuted) 0f else 1f
             playbackParameters = PlaybackParameters(playerState.playbackSpeed)
@@ -238,6 +258,7 @@ fun InteractiveVideoPlayer(
                 if (currentSec != lastRecordedSecond) {
                     lastRecordedSecond = currentSec
                     onWatchTimeTick(1L)
+                    onSeek(currentSec.toFloat())
                 }
             }
 
@@ -293,51 +314,166 @@ fun InteractiveVideoPlayer(
             .background(Color.Black)
     }
 
-    Box(
-        modifier = boxModifier
+    val gestureModifier = if (playerState.isFullscreen) {
+        Modifier
+            .pointerInput(Unit) {
+                detectTransformGestures(panZoomLock = false) { _, pan, zoom, _ ->
+                    val newScale = (zoomScale * zoom).coerceIn(1f, 4.5f)
+                    zoomScale = newScale
+                    if (newScale > 1f) {
+                        val maxPanX = (size.width * (newScale - 1f)) / 2f
+                        val maxPanY = (size.height * (newScale - 1f)) / 2f
+                        panOffsetX = (panOffsetX + pan.x * newScale).coerceIn(-maxPanX, maxPanX)
+                        panOffsetY = (panOffsetY + pan.y * newScale).coerceIn(-maxPanY, maxPanY)
+                    } else {
+                        panOffsetX = 0f
+                        panOffsetY = 0f
+                    }
+                }
+            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
                         controlsVisible = !controlsVisible
                     },
                     onDoubleTap = { offset ->
-                        if (offset.x < size.width / 2) {
-                            // Rewind 10s
-                            val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-                            exoPlayer.seekTo(newPos)
-                            currentPositionMs = newPos
-                            doubleTapSeekLeft = true
-                            controlsVisible = true
+                        if (zoomScale > 1.05f) {
+                            // Reset zoom on double-tap when zoomed
+                            zoomScale = 1f
+                            panOffsetX = 0f
+                            panOffsetY = 0f
                         } else {
-                            // Forward 10s
-                            val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
-                            exoPlayer.seekTo(newPos)
-                            currentPositionMs = newPos
-                            doubleTapSeekRight = true
-                            controlsVisible = true
+                            if (offset.x < size.width / 2) {
+                                // Rewind 10s
+                                val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                                exoPlayer.seekTo(newPos)
+                                currentPositionMs = newPos
+                                onSeek(newPos / 1000f)
+                                doubleTapSeekLeft = true
+                                controlsVisible = true
+                                if (playerState.isPlaying && !exoPlayer.isPlaying) {
+                                    exoPlayer.play()
+                                }
+                            } else {
+                                // Forward 10s
+                                val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
+                                exoPlayer.seekTo(newPos)
+                                currentPositionMs = newPos
+                                onSeek(newPos / 1000f)
+                                doubleTapSeekRight = true
+                                controlsVisible = true
+                                if (playerState.isPlaying && !exoPlayer.isPlaying) {
+                                    exoPlayer.play()
+                                }
+                            }
                         }
                     }
                 )
             }
+    } else {
+        Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onTap = {
+                    controlsVisible = !controlsVisible
+                },
+                onDoubleTap = { offset ->
+                    if (offset.x < size.width / 2) {
+                        // Rewind 10s
+                        val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                        exoPlayer.seekTo(newPos)
+                        currentPositionMs = newPos
+                        onSeek(newPos / 1000f)
+                        doubleTapSeekLeft = true
+                        controlsVisible = true
+                        if (playerState.isPlaying && !exoPlayer.isPlaying) {
+                            exoPlayer.play()
+                        }
+                    } else {
+                        // Forward 10s
+                        val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
+                        exoPlayer.seekTo(newPos)
+                        currentPositionMs = newPos
+                        onSeek(newPos / 1000f)
+                        doubleTapSeekRight = true
+                        controlsVisible = true
+                        if (playerState.isPlaying && !exoPlayer.isPlaying) {
+                            exoPlayer.play()
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    Box(
+        modifier = boxModifier.then(gestureModifier)
     ) {
-        // Real Video Surface via AndroidView & PlayerView
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
+        // Real Video Surface via AndroidView & PlayerView with hardware-accelerated zoom/pan
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = zoomScale
+                    scaleY = zoomScale
+                    translationX = panOffsetX
+                    translationY = panOffsetY
+                    clip = true
+                }
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = false
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    }
+                },
+                update = { playerView ->
+                    playerView.player = exoPlayer
+                    playerView.keepScreenOn = isActivelyPlaying
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // Fullscreen Active Zoom Indicator Badge
+        if (playerState.isFullscreen && zoomScale > 1.05f) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.Black.copy(alpha = 0.8f),
+                border = BorderStroke(1.dp, SatisfyGold.copy(alpha = 0.7f)),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = if (controlsVisible) 60.dp else 20.dp)
+                    .clickable {
+                        zoomScale = 1f
+                        panOffsetX = 0f
+                        panOffsetY = 0f
+                    }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ZoomIn,
+                        contentDescription = "Zoom Level",
+                        tint = SatisfyGold,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = String.format(java.util.Locale.US, "%.1fx Zoom • Tap to reset", zoomScale),
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-            },
-            update = { playerView ->
-                playerView.player = exoPlayer
-                playerView.keepScreenOn = isActivelyPlaying
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+            }
+        }
 
         // Double-Tap Left Indicator
         AnimatedVisibility(
@@ -836,6 +972,10 @@ fun InteractiveVideoPlayer(
                             val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
                             exoPlayer.seekTo(newPos)
                             currentPositionMs = newPos
+                            onSeek(newPos / 1000f)
+                            if (playerState.isPlaying && !exoPlayer.isPlaying) {
+                                exoPlayer.play()
+                            }
                         },
                         modifier = Modifier
                             .size(46.dp)
@@ -889,6 +1029,10 @@ fun InteractiveVideoPlayer(
                             val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
                             exoPlayer.seekTo(newPos)
                             currentPositionMs = newPos
+                            onSeek(newPos / 1000f)
+                            if (playerState.isPlaying && !exoPlayer.isPlaying) {
+                                exoPlayer.play()
+                            }
                         },
                         modifier = Modifier
                             .size(46.dp)
@@ -1012,6 +1156,9 @@ fun InteractiveVideoPlayer(
                             exoPlayer.seekTo(seekTargetMs)
                             currentPositionMs = seekTargetMs
                             onSeek(sliderScrubPosition)
+                            if (playerState.isPlaying && !exoPlayer.isPlaying) {
+                                exoPlayer.play()
+                            }
                         },
                         valueRange = 0f..maxSec,
                         colors = SliderDefaults.colors(

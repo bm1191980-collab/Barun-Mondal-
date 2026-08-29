@@ -135,27 +135,18 @@ fun AdminDashboardScreen(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Brush.linearGradient(listOf(Color(0xFFE11D48), Color(0xFF9333EA)))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Shield,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        com.example.ui.components.SatisfyAnimatedLogo(
+                            size = 36.dp,
+                            isAnimated = true,
+                            withBackgroundBadge = true
+                        )
 
                         Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Admin Console",
+                                    text = "Satisfy Admin Console",
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -480,18 +471,29 @@ fun AdminAnalyticsView(
                             .background(Color(0xFF10B981))
                     )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Satisfy Production Cluster",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        com.example.ui.components.SatisfyAnimatedLogo(
+                            size = 20.dp,
+                            isAnimated = true,
+                            withBackgroundBadge = false
                         )
-                        Text(
-                            text = "Firebase Auth + Firestore Sync Online • Realtime FCM Active",
-                            fontSize = 11.sp,
-                            color = Color(0xFF10B981)
-                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text(
+                                text = "Satisfy Production Cluster",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Firebase Auth + Firestore Sync Online • Realtime FCM Active",
+                                fontSize = 11.sp,
+                                color = Color(0xFF10B981)
+                            )
+                        }
                     }
                     Surface(
                         shape = RoundedCornerShape(8.dp),

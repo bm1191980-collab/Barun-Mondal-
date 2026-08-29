@@ -155,15 +155,15 @@ fun ShortsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Bolt,
-                        contentDescription = "Satisfy Shorts",
-                        tint = SatisfyRed,
-                        modifier = Modifier.size(26.dp)
+                    com.example.ui.components.SatisfyAnimatedLogo(
+                        size = 28.dp,
+                        isAnimated = true,
+                        withBackgroundBadge = true,
+                        badgeColor = Color.White.copy(alpha = 0.9f)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Shorts",
+                        text = "Satisfy Shorts",
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
                         color = Color.White
                     )

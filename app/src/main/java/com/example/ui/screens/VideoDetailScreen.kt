@@ -75,55 +75,32 @@ fun VideoDetailScreen(
         }
     }
 
-    if (playerState.isFullscreen) {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(Color.Black)
-        ) {
-            InteractiveVideoPlayer(
-                playerState = playerState,
-                onTogglePlayPause = onTogglePlayPause,
-                onSeek = onSeek,
-                onSeekRelative = onSeekRelative,
-                onToggleMute = onToggleMute,
-                onSpeedChange = onSpeedChange,
-                onQualityChange = onQualityChange,
-                onMinimize = onMinimize,
-                onClose = onClose,
-                onToggleControls = onToggleControls,
-                onToggleFullscreen = onToggleFullscreen,
-                nextVideo = nextVideo,
-                onPlayNextVideo = onSelectRelatedVideo,
-                onWatchTimeTick = onWatchTimeTick,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-    } else {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            // Sticky Video Player at Top
-            InteractiveVideoPlayer(
-                playerState = playerState,
-                onTogglePlayPause = onTogglePlayPause,
-                onSeek = onSeek,
-                onSeekRelative = onSeekRelative,
-                onToggleMute = onToggleMute,
-                onSpeedChange = onSpeedChange,
-                onQualityChange = onQualityChange,
-                onMinimize = onMinimize,
-                onClose = onClose,
-                onToggleControls = onToggleControls,
-                onToggleFullscreen = onToggleFullscreen,
-                nextVideo = nextVideo,
-                onPlayNextVideo = onSelectRelatedVideo,
-                onWatchTimeTick = onWatchTimeTick
-            )
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(if (playerState.isFullscreen) Color.Black else MaterialTheme.colorScheme.background)
+    ) {
+        // Sticky/Fullscreen Video Player (Single instance preserved across fullscreen transitions)
+        InteractiveVideoPlayer(
+            playerState = playerState,
+            onTogglePlayPause = onTogglePlayPause,
+            onSeek = onSeek,
+            onSeekRelative = onSeekRelative,
+            onToggleMute = onToggleMute,
+            onSpeedChange = onSpeedChange,
+            onQualityChange = onQualityChange,
+            onMinimize = onMinimize,
+            onClose = onClose,
+            onToggleControls = onToggleControls,
+            onToggleFullscreen = onToggleFullscreen,
+            nextVideo = nextVideo,
+            onPlayNextVideo = onSelectRelatedVideo,
+            onWatchTimeTick = onWatchTimeTick,
+            modifier = if (playerState.isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
+        )
 
-            // Scrollable Video Details & Related Content
+        // Scrollable Video Details & Related Content (only shown in portrait mode)
+        if (!playerState.isFullscreen) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()

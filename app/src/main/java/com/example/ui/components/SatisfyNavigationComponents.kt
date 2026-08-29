@@ -47,29 +47,17 @@ fun SatisfyTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Brand Logo & Title
+            // Brand Logo & Title with Animated Custom 3D Logo
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clickable { }
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(SatisfyRed, SatisfyNeonRed, Color(0xFF9C27B0))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = "Satisfy Play Logo",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                SatisfyAnimatedLogo(
+                    size = 38.dp,
+                    isAnimated = true,
+                    withBackgroundBadge = true,
+                    badgeColor = Color(0xFFE0F2FE)
+                )
 
                 Spacer(modifier = Modifier.width(10.dp))
 

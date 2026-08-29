@@ -5,26 +5,37 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Deep pitch black background matching Satisfy logo -->
-    <path
-        android:pathData="M0,0h108v108h-108z"
-        android:fillColor="#000000" />
 
-    <!-- Subtle ambient glow matching ribbon colors -->
+    <!-- Soft Pastel Light Blue Canvas Background matching user's custom logo -->
     <path
-        android:pathData="M54,54m-44,0a44,44 0,1,1 88,0a44,44 0,1,1 -88,0">
+        android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:startX="30"
-                android:startY="25"
-                android:endX="78"
-                android:endY="80"
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#25FF2E7E" />
-                <item android:offset="0.5" android:color="#1A7C3AED" />
-                <item android:offset="1.0" android:color="#00000000" />
+                <item android:offset="0.0" android:color="#E0F2FE" />
+                <item android:offset="0.5" android:color="#BAE6FD" />
+                <item android:offset="1.0" android:color="#7DD3FC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Subtle radial glow behind the 3D 'S' glyph -->
+    <path
+        android:pathData="M54,54m-42,0a42,42 0,1,1 84,0a42,42 0,1,1 -84,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="20"
+                android:endX="54"
+                android:endY="88"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#40FFFFFF" />
+                <item android:offset="1.0" android:color="#00BAE6FD" />
             </gradient>
         </aapt:attr>
     </path>
 </vector>
-

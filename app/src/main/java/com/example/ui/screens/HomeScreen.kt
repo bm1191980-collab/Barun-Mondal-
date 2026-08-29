@@ -414,11 +414,10 @@ fun ShortsShelf(
                 .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Filled.Bolt,
-                contentDescription = "Satisfy Shorts",
-                tint = SatisfyRed,
-                modifier = Modifier.size(24.dp)
+            com.example.ui.components.SatisfyAnimatedLogo(
+                size = 24.dp,
+                isAnimated = true,
+                withBackgroundBadge = true
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
