@@ -71,6 +71,7 @@ fun InteractiveVideoPlayer(
     nextVideo: PostEntity? = null,
     onPlayNextVideo: (PostEntity) -> Unit = {},
     onWatchTimeTick: (Long) -> Unit = {},
+    exoPlayer: ExoPlayer? = null,
     modifier: Modifier = Modifier
 ) {
     val post = playerState.activePost ?: return
@@ -114,24 +115,29 @@ fun InteractiveVideoPlayer(
         }
     }
 
-    // ExoPlayer instance configured with custom DataSource & MediaSource
-    val exoPlayer = remember(post.id, post.mediaUrl, retryCount) {
-        SatisfyVideoEngine.createExoPlayer(context).apply {
-            val mediaItem = SatisfyVideoEngine.createMediaItem(post.mediaUrl, post.type)
-            setMediaItem(mediaItem)
-            val initialSeekMs = (playerState.currentPositionSeconds * 1000f).toLong().coerceAtLeast(0L)
-            if (initialSeekMs > 0L) {
-                seekTo(initialSeekMs)
+    // Active ExoPlayer instance (either passed shared persistent instance or local instance)
+    val fallbackPlayer = remember(post.id, post.mediaUrl, retryCount) {
+        if (exoPlayer != null) null
+        else {
+            SatisfyVideoEngine.createExoPlayer(context).apply {
+                val mediaItem = SatisfyVideoEngine.createMediaItem(post.mediaUrl, post.type)
+                setMediaItem(mediaItem)
+                val initialSeekMs = (playerState.currentPositionSeconds * 1000f).toLong().coerceAtLeast(0L)
+                if (initialSeekMs > 0L) {
+                    seekTo(initialSeekMs)
+                }
+                playWhenReady = playerState.isPlaying
+                volume = if (playerState.isMuted) 0f else 1f
+                playbackParameters = PlaybackParameters(playerState.playbackSpeed)
+                prepare()
             }
-            playWhenReady = playerState.isPlaying
-            volume = if (playerState.isMuted) 0f else 1f
-            playbackParameters = PlaybackParameters(playerState.playbackSpeed)
-            prepare()
         }
     }
 
+    val activeExoPlayer = exoPlayer ?: fallbackPlayer ?: return
+
     // Attach ExoPlayer listener
-    DisposableEffect(exoPlayer) {
+    DisposableEffect(activeExoPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
@@ -144,8 +150,8 @@ fun InteractiveVideoPlayer(
                         isBuffering = false
                         playerError = null
                         isPlaybackEnded = false
-                        if (exoPlayer.duration > 0) {
-                            durationMs = exoPlayer.duration
+                        if (activeExoPlayer.duration > 0) {
+                            durationMs = activeExoPlayer.duration
                         }
                     }
                     Player.STATE_ENDED -> {
@@ -165,33 +171,38 @@ fun InteractiveVideoPlayer(
             }
         }
 
-        exoPlayer.addListener(listener)
+        activeExoPlayer.addListener(listener)
 
         onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.stop()
-            exoPlayer.release()
+            activeExoPlayer.removeListener(listener)
+            // If fallback local player was created, clean it up; if shared player from ViewModel, preserve for mini player!
+            if (exoPlayer == null) {
+                activeExoPlayer.stop()
+                activeExoPlayer.release()
+            }
         }
     }
 
-    // Lifecycle observer to pause/stop/release player on app background/exit & prevent background playback
+    // Lifecycle observer to pause player on app background/exit
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, exoPlayer) {
+    DisposableEffect(lifecycleOwner, activeExoPlayer) {
         val window = (context as? Activity)?.window
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> {
-                    // Stop active playback immediately when leaving foreground
-                    exoPlayer.pause()
+                    // Stop active playback when leaving foreground
+                    activeExoPlayer.pause()
                     window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
                 Lifecycle.Event.ON_STOP -> {
-                    exoPlayer.pause()
+                    activeExoPlayer.pause()
                     window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
                 Lifecycle.Event.ON_DESTROY -> {
-                    exoPlayer.stop()
-                    exoPlayer.release()
+                    if (exoPlayer == null) {
+                        activeExoPlayer.stop()
+                        activeExoPlayer.release()
+                    }
                     window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
                 else -> {}
@@ -222,38 +233,38 @@ fun InteractiveVideoPlayer(
     LaunchedEffect(playerState.isPlaying) {
         if (playerState.isPlaying) {
             if (isPlaybackEnded) {
-                exoPlayer.seekTo(0L)
+                activeExoPlayer.seekTo(0L)
                 isPlaybackEnded = false
             }
-            exoPlayer.play()
+            activeExoPlayer.play()
         } else {
-            exoPlayer.pause()
+            activeExoPlayer.pause()
         }
     }
 
     // Sync volume/mute with playerState
     LaunchedEffect(playerState.isMuted) {
-        exoPlayer.volume = if (playerState.isMuted) 0f else 1f
+        activeExoPlayer.volume = if (playerState.isMuted) 0f else 1f
     }
 
     // Sync speed with playerState
     LaunchedEffect(playerState.playbackSpeed) {
-        exoPlayer.playbackParameters = PlaybackParameters(playerState.playbackSpeed)
+        activeExoPlayer.playbackParameters = PlaybackParameters(playerState.playbackSpeed)
     }
 
     // Real-time polling loop for high precision playback time, buffer track, and watch time recording
-    LaunchedEffect(exoPlayer, isDraggingSlider) {
+    LaunchedEffect(activeExoPlayer, isDraggingSlider) {
         var lastRecordedSecond = 0L
         while (isActive) {
             if (!isDraggingSlider) {
-                currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
-                bufferedPositionMs = exoPlayer.bufferedPosition.coerceAtLeast(0L)
-                if (exoPlayer.duration > 0) {
-                    durationMs = exoPlayer.duration
+                currentPositionMs = activeExoPlayer.currentPosition.coerceAtLeast(0L)
+                bufferedPositionMs = activeExoPlayer.bufferedPosition.coerceAtLeast(0L)
+                if (activeExoPlayer.duration > 0) {
+                    durationMs = activeExoPlayer.duration
                 }
             }
 
-            if (exoPlayer.isPlaying) {
+            if (activeExoPlayer.isPlaying) {
                 val currentSec = currentPositionMs / 1000L
                 if (currentSec != lastRecordedSecond) {
                     lastRecordedSecond = currentSec
@@ -267,8 +278,8 @@ fun InteractiveVideoPlayer(
     }
 
     // Auto-hide controls after 4 seconds of inactivity when playing
-    LaunchedEffect(controlsVisible, exoPlayer.isPlaying) {
-        if (controlsVisible && exoPlayer.isPlaying) {
+    LaunchedEffect(controlsVisible, activeExoPlayer.isPlaying) {
+        if (controlsVisible && activeExoPlayer.isPlaying) {
             delay(4000L)
             controlsVisible = false
         }
@@ -345,25 +356,25 @@ fun InteractiveVideoPlayer(
                         } else {
                             if (offset.x < size.width / 2) {
                                 // Rewind 10s
-                                val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-                                exoPlayer.seekTo(newPos)
+                                val newPos = (activeExoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                                activeExoPlayer.seekTo(newPos)
                                 currentPositionMs = newPos
                                 onSeek(newPos / 1000f)
                                 doubleTapSeekLeft = true
                                 controlsVisible = true
-                                if (playerState.isPlaying && !exoPlayer.isPlaying) {
-                                    exoPlayer.play()
+                                if (playerState.isPlaying && !activeExoPlayer.isPlaying) {
+                                    activeExoPlayer.play()
                                 }
                             } else {
                                 // Forward 10s
-                                val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
-                                exoPlayer.seekTo(newPos)
+                                val newPos = (activeExoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
+                                activeExoPlayer.seekTo(newPos)
                                 currentPositionMs = newPos
                                 onSeek(newPos / 1000f)
                                 doubleTapSeekRight = true
                                 controlsVisible = true
-                                if (playerState.isPlaying && !exoPlayer.isPlaying) {
-                                    exoPlayer.play()
+                                if (playerState.isPlaying && !activeExoPlayer.isPlaying) {
+                                    activeExoPlayer.play()
                                 }
                             }
                         }
@@ -379,25 +390,25 @@ fun InteractiveVideoPlayer(
                 onDoubleTap = { offset ->
                     if (offset.x < size.width / 2) {
                         // Rewind 10s
-                        val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-                        exoPlayer.seekTo(newPos)
+                        val newPos = (activeExoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                        activeExoPlayer.seekTo(newPos)
                         currentPositionMs = newPos
                         onSeek(newPos / 1000f)
                         doubleTapSeekLeft = true
                         controlsVisible = true
-                        if (playerState.isPlaying && !exoPlayer.isPlaying) {
-                            exoPlayer.play()
+                        if (playerState.isPlaying && !activeExoPlayer.isPlaying) {
+                            activeExoPlayer.play()
                         }
                     } else {
                         // Forward 10s
-                        val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
-                        exoPlayer.seekTo(newPos)
+                        val newPos = (activeExoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
+                        activeExoPlayer.seekTo(newPos)
                         currentPositionMs = newPos
                         onSeek(newPos / 1000f)
                         doubleTapSeekRight = true
                         controlsVisible = true
-                        if (playerState.isPlaying && !exoPlayer.isPlaying) {
-                            exoPlayer.play()
+                        if (playerState.isPlaying && !activeExoPlayer.isPlaying) {
+                            activeExoPlayer.play()
                         }
                     }
                 }
@@ -423,7 +434,7 @@ fun InteractiveVideoPlayer(
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
-                        player = exoPlayer
+                        player = activeExoPlayer
                         useController = false
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -432,7 +443,7 @@ fun InteractiveVideoPlayer(
                     }
                 },
                 update = { playerView ->
-                    playerView.player = exoPlayer
+                    playerView.player = activeExoPlayer
                     playerView.keepScreenOn = isActivelyPlaying
                 },
                 modifier = Modifier.fillMaxSize()
@@ -608,8 +619,8 @@ fun InteractiveVideoPlayer(
                             playerError = null
                             isBuffering = true
                             retryCount++
-                            exoPlayer.prepare()
-                            exoPlayer.play()
+                            activeExoPlayer.prepare()
+                            activeExoPlayer.play()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
                         shape = RoundedCornerShape(20.dp),
@@ -811,8 +822,8 @@ fun InteractiveVideoPlayer(
                         IconButton(
                             onClick = {
                                 isAutoNextCancelled = true
-                                exoPlayer.seekTo(0L)
-                                exoPlayer.play()
+                                activeExoPlayer.seekTo(0L)
+                                activeExoPlayer.play()
                                 isPlaybackEnded = false
                             },
                             modifier = Modifier
@@ -946,10 +957,10 @@ fun InteractiveVideoPlayer(
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = if (exoPlayer.isPlaying) SatisfyRed else Color.DarkGray
+                                color = if (activeExoPlayer.isPlaying) SatisfyRed else Color.DarkGray
                             ) {
                                 Text(
-                                    text = if (exoPlayer.isPlaying) "PLAYING" else "PAUSED",
+                                    text = if (activeExoPlayer.isPlaying) "PLAYING" else "PAUSED",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
                                     color = Color.White,
@@ -969,12 +980,12 @@ fun InteractiveVideoPlayer(
                     // Rewind 10s
                     IconButton(
                         onClick = {
-                            val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-                            exoPlayer.seekTo(newPos)
+                            val newPos = (activeExoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                            activeExoPlayer.seekTo(newPos)
                             currentPositionMs = newPos
                             onSeek(newPos / 1000f)
-                            if (playerState.isPlaying && !exoPlayer.isPlaying) {
-                                exoPlayer.play()
+                            if (playerState.isPlaying && !activeExoPlayer.isPlaying) {
+                                activeExoPlayer.play()
                             }
                         },
                         modifier = Modifier
@@ -994,14 +1005,14 @@ fun InteractiveVideoPlayer(
                     IconButton(
                         onClick = {
                             if (isPlaybackEnded) {
-                                exoPlayer.seekTo(0L)
-                                exoPlayer.play()
+                                activeExoPlayer.seekTo(0L)
+                                activeExoPlayer.play()
                                 isPlaybackEnded = false
                             } else {
-                                if (exoPlayer.isPlaying) {
-                                    exoPlayer.pause()
+                                if (activeExoPlayer.isPlaying) {
+                                    activeExoPlayer.pause()
                                 } else {
-                                    exoPlayer.play()
+                                    activeExoPlayer.play()
                                 }
                                 onTogglePlayPause()
                             }
@@ -1014,10 +1025,10 @@ fun InteractiveVideoPlayer(
                         Icon(
                             imageVector = when {
                                 isPlaybackEnded -> Icons.Filled.Replay
-                                exoPlayer.isPlaying -> Icons.Filled.Pause
+                                activeExoPlayer.isPlaying -> Icons.Filled.Pause
                                 else -> Icons.Filled.PlayArrow
                             },
-                            contentDescription = if (exoPlayer.isPlaying) "Pause" else "Play",
+                            contentDescription = if (activeExoPlayer.isPlaying) "Pause" else "Play",
                             tint = Color.White,
                             modifier = Modifier.size(34.dp)
                         )
@@ -1026,12 +1037,12 @@ fun InteractiveVideoPlayer(
                     // Forward 10s
                     IconButton(
                         onClick = {
-                            val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
-                            exoPlayer.seekTo(newPos)
+                            val newPos = (activeExoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
+                            activeExoPlayer.seekTo(newPos)
                             currentPositionMs = newPos
                             onSeek(newPos / 1000f)
-                            if (playerState.isPlaying && !exoPlayer.isPlaying) {
-                                exoPlayer.play()
+                            if (playerState.isPlaying && !activeExoPlayer.isPlaying) {
+                                activeExoPlayer.play()
                             }
                         },
                         modifier = Modifier
@@ -1153,11 +1164,11 @@ fun InteractiveVideoPlayer(
                         onValueChangeFinished = {
                             isDraggingSlider = false
                             val seekTargetMs = (sliderScrubPosition * 1000f).toLong()
-                            exoPlayer.seekTo(seekTargetMs)
+                            activeExoPlayer.seekTo(seekTargetMs)
                             currentPositionMs = seekTargetMs
                             onSeek(sliderScrubPosition)
-                            if (playerState.isPlaying && !exoPlayer.isPlaying) {
-                                exoPlayer.play()
+                            if (playerState.isPlaying && !activeExoPlayer.isPlaying) {
+                                activeExoPlayer.play()
                             }
                         },
                         valueRange = 0f..maxSec,

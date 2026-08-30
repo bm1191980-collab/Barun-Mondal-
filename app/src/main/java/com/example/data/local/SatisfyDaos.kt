@@ -671,5 +671,63 @@ interface UserInteractionDao {
     fun getPostsByCreator(userId: String): Flow<List<PostEntity>>
 }
 
+@Dao
+interface RecentSearchDao {
+    @Query("SELECT * FROM recent_searches ORDER BY timestamp DESC LIMIT 25")
+    fun getRecentSearches(): Flow<List<com.example.data.model.RecentSearchEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRecentSearch(search: com.example.data.model.RecentSearchEntity)
+
+    @Query("DELETE FROM recent_searches WHERE `query` = :query")
+    suspend fun deleteRecentSearch(query: String)
+
+    @Query("DELETE FROM recent_searches")
+    suspend fun clearAllRecentSearches()
+}
+
+@Dao
+interface NotificationDao {
+    @Query("SELECT * FROM user_notifications WHERE recipientUid = :recipientUid OR recipientUid = 'all' ORDER BY isPinned DESC, timestamp DESC")
+    fun getAllNotifications(recipientUid: String): Flow<List<com.example.data.model.NotificationEntity>>
+
+    @Query("SELECT * FROM user_notifications WHERE (recipientUid = :recipientUid OR recipientUid = 'all') AND isRead = 0 ORDER BY timestamp DESC")
+    fun getUnreadNotifications(recipientUid: String): Flow<List<com.example.data.model.NotificationEntity>>
+
+    @Query("SELECT COUNT(*) FROM user_notifications WHERE (recipientUid = :recipientUid OR recipientUid = 'all') AND isRead = 0")
+    fun getUnreadCount(recipientUid: String): Flow<Int>
+
+    @Query("SELECT * FROM user_notifications WHERE (recipientUid = :recipientUid OR recipientUid = 'all') AND type = :type ORDER BY timestamp DESC")
+    fun getNotificationsByType(recipientUid: String, type: com.example.data.model.NotificationType): Flow<List<com.example.data.model.NotificationEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotification(notification: com.example.data.model.NotificationEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(notifications: List<com.example.data.model.NotificationEntity>)
+
+    @Query("UPDATE user_notifications SET isRead = 1 WHERE id = :id")
+    suspend fun markAsRead(id: Long)
+
+    @Query("UPDATE user_notifications SET isRead = 1 WHERE recipientUid = :recipientUid OR recipientUid = 'all'")
+    suspend fun markAllAsRead(recipientUid: String)
+
+    @Query("UPDATE user_notifications SET isPinned = NOT isPinned WHERE id = :id")
+    suspend fun togglePin(id: Long)
+
+    @Query("DELETE FROM user_notifications WHERE id = :id")
+    suspend fun deleteNotification(id: Long)
+
+    @Query("DELETE FROM user_notifications WHERE recipientUid = :recipientUid OR recipientUid = 'all'")
+    suspend fun clearAllNotifications(recipientUid: String)
+
+    @Query("SELECT * FROM user_notifications WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getByFirestoreId(firestoreId: String): com.example.data.model.NotificationEntity?
+
+    @Query("SELECT COUNT(*) FROM user_notifications")
+    suspend fun getCount(): Int
+}
+
+
 
 

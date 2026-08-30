@@ -8,8 +8,16 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.SatisfyDatabase
 import com.example.data.model.*
 import com.example.data.repository.AdminRepository
+import com.example.data.repository.NotificationRepository
 import com.example.data.repository.ProRepository
 import com.example.data.repository.SatisfyRepository
+import com.example.data.service.SatisfyVideoEngine
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
@@ -30,7 +38,8 @@ enum class ScreenTab {
     CREATOR_ANALYTICS,
     MONETIZATION,
     SATISFY_RULES,
-    PUBLIC_CREATOR_PROFILE
+    PUBLIC_CREATOR_PROFILE,
+    NOTIFICATIONS
 }
 
 data class PublicCreatorProfile(
@@ -88,13 +97,22 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     private val repository: SatisfyRepository
     val adminRepository: AdminRepository
     val proRepository: ProRepository
+    val notificationRepository: NotificationRepository
 
     val currentTab = MutableStateFlow(ScreenTab.HOME)
     val selectedCategory = MutableStateFlow("All")
     val searchQuery = MutableStateFlow("")
+    val recentSearches: StateFlow<List<RecentSearchEntity>>
 
     val playerState = MutableStateFlow(PlayerState())
     val isDarkMode = MutableStateFlow(true)
+
+    // Notification State Flows
+    val allNotifications: StateFlow<List<NotificationEntity>>
+    val unreadNotificationCount: StateFlow<Int>
+    val isFirebaseNotificationConnected: StateFlow<Boolean>
+    val notificationPreferences: StateFlow<NotificationPreferences>
+    val inAppNotificationToast = MutableStateFlow<InAppNotificationToast?>(null)
 
     // Creator Pages state
     val creatorPages: StateFlow<List<CreatorPageEntity>>
@@ -192,7 +210,8 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             creatorPageDao = database.creatorPageDao(),
             monetizationDao = database.monetizationDao(),
             savedAccountDao = database.savedAccountDao(),
-            userInteractionDao = database.userInteractionDao()
+            userInteractionDao = database.userInteractionDao(),
+            recentSearchDao = database.recentSearchDao()
         )
         adminRepository = AdminRepository(
             context = application.applicationContext,
@@ -203,6 +222,30 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             appSettingsDao = database.appSettingsDao(),
             auditLogDao = database.auditLogDao()
         )
+
+        notificationRepository = NotificationRepository(
+            context = application.applicationContext,
+            notificationDao = database.notificationDao()
+        )
+
+        allNotifications = notificationRepository.allNotifications.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        unreadNotificationCount = notificationRepository.unreadCount.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            0
+        )
+        isFirebaseNotificationConnected = notificationRepository.isFirebaseConnected
+        notificationPreferences = notificationRepository.preferences
+
+        viewModelScope.launch {
+            notificationRepository.inAppToast.collectLatest { toast ->
+                inAppNotificationToast.value = toast
+            }
+        }
 
         isAdminAuthenticated = adminRepository.isAdminAuthenticated
         currentAdmin = adminRepository.currentAdmin
@@ -266,6 +309,11 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             emptyList()
         )
         photoPosts = repository.photoPosts.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+        recentSearches = repository.recentSearches.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
             emptyList()
@@ -568,20 +616,143 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun recordRecentSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isNotBlank()) {
+            viewModelScope.launch {
+                repository.addRecentSearch(trimmed)
+            }
+        }
+    }
+
+    fun removeRecentSearch(query: String) {
+        viewModelScope.launch {
+            repository.removeRecentSearch(query)
+        }
+    }
+
+    fun clearRecentSearches() {
+        viewModelScope.launch {
+            repository.clearRecentSearches()
+        }
+    }
+
+    // Persistent ExoPlayer for global continuous video & mini-player playback
+    private var videoExoPlayer: ExoPlayer? = null
+    private var playbackTickerJob: Job? = null
+
+    fun getOrCreateExoPlayer(): ExoPlayer {
+        if (videoExoPlayer == null) {
+            val app = getApplication<Application>()
+            videoExoPlayer = SatisfyVideoEngine.createExoPlayer(app.applicationContext).apply {
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(state: Int) {
+                        when (state) {
+                            Player.STATE_BUFFERING -> {
+                                // buffering
+                            }
+                            Player.STATE_READY -> {
+                                if (duration > 0) {
+                                    val durSec = duration / 1000f
+                                    playerState.value = playerState.value.copy(durationSeconds = durSec)
+                                }
+                            }
+                            Player.STATE_ENDED -> {
+                                playerState.value = playerState.value.copy(
+                                    isPlaying = false,
+                                    currentPositionSeconds = playerState.value.durationSeconds
+                                )
+                            }
+                            Player.STATE_IDLE -> {}
+                        }
+                    }
+
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        playerState.value = playerState.value.copy(isPlaying = isPlaying)
+                    }
+                })
+            }
+        }
+        return videoExoPlayer!!
+    }
+
+    private fun startPlaybackTicker() {
+        playbackTickerJob?.cancel()
+        playbackTickerJob = viewModelScope.launch {
+            var lastRecordedSecond = -1L
+            while (isActive && playerState.value.activePost != null) {
+                val player = videoExoPlayer
+                if (player != null && player.playbackState != Player.STATE_IDLE) {
+                    val currentPosMs = player.currentPosition.coerceAtLeast(0L)
+                    val durMs = if (player.duration > 0) player.duration else (playerState.value.durationSeconds * 1000L).toLong()
+                    val currentSec = currentPosMs / 1000f
+                    val durSec = durMs / 1000f
+                    val isPlaying = player.isPlaying
+
+                    // Only emit StateFlow updates if position changed meaningfully or playing state changed
+                    val prev = playerState.value
+                    if (prev.isPlaying != isPlaying || kotlin.math.abs(prev.currentPositionSeconds - currentSec) >= 0.25f || prev.durationSeconds != durSec) {
+                        playerState.value = prev.copy(
+                            currentPositionSeconds = currentSec,
+                            durationSeconds = if (durSec > 0f) durSec else prev.durationSeconds,
+                            isPlaying = isPlaying
+                        )
+                    }
+
+                    if (isPlaying) {
+                        val wholeSec = currentPosMs / 1000L
+                        if (wholeSec != lastRecordedSecond && wholeSec > 0) {
+                            lastRecordedSecond = wholeSec
+                            recordPlaybackProgress(1L)
+                        }
+                    }
+                }
+                val delayTime = if (videoExoPlayer?.isPlaying == true) 250L else 500L
+                delay(delayTime)
+            }
+        }
+    }
+
     // Video Player Actions
     fun openVideo(post: PostEntity, expanded: Boolean = true, keepFullscreen: Boolean = false) {
         val totalSecs = parseDurationToSeconds(post.duration)
         val shouldBeFullscreen = if (keepFullscreen) playerState.value.isFullscreen else false
-        playerState.value = PlayerState(
-            activePost = post,
-            isPlaying = true,
-            currentPositionSeconds = 0f,
-            durationSeconds = totalSecs.toFloat(),
-            isExpanded = expanded,
-            isMiniPlayerVisible = true,
-            showControls = true,
-            isFullscreen = shouldBeFullscreen
-        )
+        val isSameVideo = playerState.value.activePost?.id == post.id && videoExoPlayer != null
+
+        if (!isSameVideo) {
+            val player = getOrCreateExoPlayer()
+            val mediaItem = SatisfyVideoEngine.createMediaItem(post.mediaUrl, post.type)
+            player.setMediaItem(mediaItem)
+            player.volume = if (playerState.value.isMuted) 0f else 1f
+            player.playbackParameters = PlaybackParameters(playerState.value.playbackSpeed)
+            player.seekTo(0L)
+            player.prepare()
+            player.play()
+
+            playerState.value = PlayerState(
+                activePost = post,
+                isPlaying = true,
+                currentPositionSeconds = 0f,
+                durationSeconds = totalSecs.toFloat(),
+                isExpanded = expanded,
+                isMiniPlayerVisible = true,
+                showControls = true,
+                isFullscreen = shouldBeFullscreen
+            )
+            startPlaybackTicker()
+        } else {
+            // Same video being reopened/expanded: maintain exact playback timestamp!
+            playerState.value = playerState.value.copy(
+                isExpanded = expanded,
+                isMiniPlayerVisible = true,
+                isFullscreen = shouldBeFullscreen
+            )
+            if (!playerState.value.isPlaying) {
+                videoExoPlayer?.play()
+                playerState.value = playerState.value.copy(isPlaying = true)
+            }
+        }
+
         viewModelScope.launch {
             repository.incrementViewCount(post.id)
             repository.recordUserWatchHistory(userProfile.value.uid, post.id)
@@ -610,43 +781,106 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun minimizePlayer() {
-        playerState.value = playerState.value.copy(isExpanded = false, isFullscreen = false)
+        // Minimize to mini-player while keeping video playback completely active
+        playerState.value = playerState.value.copy(
+            isExpanded = false,
+            isFullscreen = false,
+            isMiniPlayerVisible = true
+        )
     }
 
     fun expandPlayer() {
-        playerState.value = playerState.value.copy(isExpanded = true)
+        // Expand back to full screen: seamlessly preserves and continues at the exact timestamp!
+        playerState.value = playerState.value.copy(
+            isExpanded = true,
+            isMiniPlayerVisible = true
+        )
+    }
+
+    fun expandPlayerToFullscreen() {
+        playerState.value = playerState.value.copy(
+            isExpanded = true,
+            isFullscreen = true,
+            isMiniPlayerVisible = true
+        )
     }
 
     fun closePlayer() {
-        playerState.value = PlayerState(activePost = null, isPlaying = false, isMiniPlayerVisible = false, isExpanded = false, isFullscreen = false)
+        playbackTickerJob?.cancel()
+        try {
+            videoExoPlayer?.stop()
+            videoExoPlayer?.clearMediaItems()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        playerState.value = PlayerState(
+            activePost = null,
+            isPlaying = false,
+            isMiniPlayerVisible = false,
+            isExpanded = false,
+            isFullscreen = false,
+            currentPositionSeconds = 0f
+        )
     }
 
     fun togglePlayPause() {
-        playerState.value = playerState.value.copy(isPlaying = !playerState.value.isPlaying)
+        val player = videoExoPlayer
+        if (player != null) {
+            if (player.isPlaying) {
+                player.pause()
+                playerState.value = playerState.value.copy(isPlaying = false)
+            } else {
+                if (player.playbackState == Player.STATE_ENDED) {
+                    player.seekTo(0L)
+                }
+                player.play()
+                playerState.value = playerState.value.copy(isPlaying = true)
+            }
+        } else {
+            playerState.value = playerState.value.copy(isPlaying = !playerState.value.isPlaying)
+        }
     }
 
     fun pausePlayer() {
+        videoExoPlayer?.pause()
         if (playerState.value.isPlaying) {
             playerState.value = playerState.value.copy(isPlaying = false)
         }
     }
 
+    fun resumePlayer() {
+        videoExoPlayer?.play()
+        if (!playerState.value.isPlaying) {
+            playerState.value = playerState.value.copy(isPlaying = true)
+        }
+    }
+
     fun seekTo(seconds: Float) {
+        val targetMs = (seconds * 1000f).toLong().coerceAtLeast(0L)
+        videoExoPlayer?.seekTo(targetMs)
         playerState.value = playerState.value.copy(
             currentPositionSeconds = seconds.coerceIn(0f, playerState.value.durationSeconds)
         )
     }
 
     fun seekRelative(deltaSeconds: Float) {
-        val newPos = (playerState.value.currentPositionSeconds + deltaSeconds).coerceIn(0f, playerState.value.durationSeconds)
-        playerState.value = playerState.value.copy(currentPositionSeconds = newPos)
+        val curMs = videoExoPlayer?.currentPosition ?: (playerState.value.currentPositionSeconds * 1000f).toLong()
+        val durMs = if ((videoExoPlayer?.duration ?: 0L) > 0L) videoExoPlayer!!.duration else (playerState.value.durationSeconds * 1000L).toLong()
+        val targetMs = (curMs + (deltaSeconds * 1000f).toLong()).coerceIn(0L, durMs)
+        videoExoPlayer?.seekTo(targetMs)
+        playerState.value = playerState.value.copy(
+            currentPositionSeconds = targetMs / 1000f
+        )
     }
 
     fun toggleMute() {
-        playerState.value = playerState.value.copy(isMuted = !playerState.value.isMuted)
+        val newMuted = !playerState.value.isMuted
+        videoExoPlayer?.volume = if (newMuted) 0f else 1f
+        playerState.value = playerState.value.copy(isMuted = newMuted)
     }
 
     fun setPlaybackSpeed(speed: Float) {
+        videoExoPlayer?.playbackParameters = PlaybackParameters(speed)
         playerState.value = playerState.value.copy(playbackSpeed = speed)
     }
 
@@ -1333,6 +1567,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             saveUserProfileToPrefs(updated)
             proRepository.seedInitialProData(account.uid, account.referralCode)
             showSwitchProfileDialog.value = false
+            uploadSuccessMessage.value = "Switched to ${account.name} (${account.handle})"
         }
     }
 
@@ -1365,6 +1600,12 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
                 link = "satisfy.app/$cleanHandle",
                 subscriberCount = "0 subscribers",
                 isPro = isPro,
+                activePlanId = if (isPro) "plan_pro_5" else "plan_free",
+                activePlanName = if (isPro) "Satisfy PRO Monthly" else "Free",
+                activePlanTier = if (isPro) "MONTHLY" else "NONE",
+                subscriptionStatus = if (isPro) "ACTIVE" else "INACTIVE",
+                proStartedAt = if (isPro) System.currentTimeMillis() else null,
+                proExpiresAt = if (isPro) System.currentTimeMillis() + 86400000L * 30 else null,
                 referralCode = referralCode,
                 lastActiveTimestamp = System.currentTimeMillis(),
                 isActive = true
@@ -1374,6 +1615,7 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             switchAccount(newAccount)
             showAddAccountDialog.value = false
             showSwitchProfileDialog.value = false
+            uploadSuccessMessage.value = "Account created & logged in as ${newAccount.name}"
         }
     }
 
@@ -1908,6 +2150,90 @@ class SatisfyViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: Exception) {
                 onResult(false, e.message ?: "Failed to reject application")
             }
+        }
+    }
+
+    // --- REAL-TIME NOTIFICATION METHODS ---
+
+    fun markNotificationAsRead(id: Long, firestoreId: String = "") {
+        viewModelScope.launch {
+            notificationRepository.markAsRead(id, firestoreId)
+        }
+    }
+
+    fun markAllNotificationsAsRead() {
+        viewModelScope.launch {
+            notificationRepository.markAllAsRead(userProfile.value.uid)
+        }
+    }
+
+    fun toggleNotificationPin(id: Long) {
+        viewModelScope.launch {
+            notificationRepository.togglePin(id)
+        }
+    }
+
+    fun deleteNotification(id: Long, firestoreId: String = "") {
+        viewModelScope.launch {
+            notificationRepository.deleteNotification(id, firestoreId)
+        }
+    }
+
+    fun clearAllNotifications() {
+        viewModelScope.launch {
+            notificationRepository.clearAllNotifications(userProfile.value.uid)
+        }
+    }
+
+    fun updateNotificationPreferences(prefs: NotificationPreferences) {
+        notificationRepository.updatePreferences(prefs)
+    }
+
+    fun simulateRealTimeNotification(type: NotificationType, title: String, body: String) {
+        viewModelScope.launch {
+            val senderInfo = when (type) {
+                NotificationType.VIDEO_UPLOAD -> Pair("ASMR Flow 4K", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150")
+                NotificationType.COMMENT, NotificationType.LIKE -> Pair("Liam Vance", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150")
+                NotificationType.MONETIZATION_UPDATE -> Pair("Satisfy Creator Program", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150")
+                NotificationType.PRO_MEMBERSHIP -> Pair("Satisfy Pro", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150")
+                NotificationType.WALLET_PAYOUT -> Pair("Satisfy Financial System", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150")
+                NotificationType.ADMIN_BROADCAST -> Pair("Satisfy SuperAdmin", "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150")
+                else -> Pair("Satisfy Official", "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150")
+            }
+
+            notificationRepository.postNotification(
+                recipientUid = userProfile.value.uid,
+                senderUid = "simulated_${type.name.lowercase()}",
+                senderName = senderInfo.first,
+                senderAvatar = senderInfo.second,
+                type = type,
+                title = title,
+                body = body,
+                targetType = when (type) {
+                    NotificationType.VIDEO_UPLOAD -> "POST"
+                    NotificationType.MONETIZATION_UPDATE -> "MONETIZATION"
+                    NotificationType.WALLET_PAYOUT -> "WALLET"
+                    NotificationType.PRO_MEMBERSHIP -> "PRO"
+                    else -> "NONE"
+                },
+                targetThumbnailUrl = if (type == NotificationType.VIDEO_UPLOAD) "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600" else "",
+                priority = "HIGH"
+            )
+        }
+    }
+
+    fun dismissInAppToast() {
+        inAppNotificationToast.value = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        playbackTickerJob?.cancel()
+        try {
+            videoExoPlayer?.release()
+            videoExoPlayer = null
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

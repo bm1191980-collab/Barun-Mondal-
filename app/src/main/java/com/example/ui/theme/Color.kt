@@ -1,58 +1,125 @@
 package com.example.ui.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// Immersive UI Theme Palette
-val ImmersiveDarkBg = Color(0xFF1C1B1F)
-val ImmersiveDarkSurface = Color(0xFF1C1B1F)
-val ImmersiveDarkSurfaceVariant = Color(0xFF2B2930)
-val ImmersiveDarkSurfaceContainerHigh = Color(0xFF36343B)
-val ImmersiveDarkBorder = Color(0xFF49454F)
-val ImmersiveDarkBorderSubtle = Color(0xFF333038)
+// ==========================================
+// MODERN BLUE & PURPLE MATERIAL 3 COLOR TOKENS
+// Inspired by the Satisfy 3D Blue-Yellow-Violet Logo
+// ==========================================
 
-// Text Colors
-val ImmersiveTextPrimaryDark = Color(0xFFE6E1E5)
-val ImmersiveTextSecondaryDark = Color(0xFFCAC4D0)
-val ImmersiveTextMutedDark = Color(0xFF938F99)
+// --- DARK THEME SURFACES & BACKGROUNDS ---
+val DeepMidnightBg = Color(0xFF090D16)          // Deepest obsidian navy canvas
+val DeepMidnightSurface = Color(0xFF0F1523)     // Primary surface container
+val DeepMidnightSurfaceVariant = Color(0xFF161F33) // Card & elevated container
+val DeepMidnightSurfaceElevated = Color(0xFF1E2A45) // Floating / high modal surface
+val DeepMidnightBorder = Color(0xFF2B3A5E)      // Crisp subtle boundary line
+val DeepMidnightBorderSubtle = Color(0xFF1E2842) // Very faint divider
 
-// Accent and Brand Accents (Immersive Lavender & Luminous Highlights)
-val ImmersivePrimary = Color(0xFFD0BCFF)
-val ImmersiveOnPrimary = Color(0xFF381E72)
-val ImmersivePrimaryContainer = Color(0xFF4F378B)
-val ImmersiveOnPrimaryContainer = Color(0xFFEADDFF)
+// Text / Content on Dark
+val TextPrimaryDark = Color(0xFFF8FAFC)        // Crisp high-contrast white
+val TextSecondaryDark = Color(0xFFCBD5E1)      // Cool slate secondary
+val TextMutedDark = Color(0xFF818FA8)          // Muted metadata / timestamps
 
-val ImmersiveSecondary = Color(0xFFCCC2DC)
-val ImmersiveOnSecondary = Color(0xFF332D41)
-val ImmersiveSecondaryContainer = Color(0xFF4A4458)
-val ImmersiveOnSecondaryContainer = Color(0xFFE8DEF8)
+// --- LIGHT THEME SURFACES & BACKGROUNDS ---
+val LightIceBg = Color(0xFFF4F7FC)             // Cool clean ice-white background
+val LightIceSurface = Color(0xFFFFFFFF)        // Pure white card surface
+val LightIceSurfaceVariant = Color(0xFFE8EEF8) // Soft periwinkle card surface
+val LightIceBorder = Color(0xFFCBD5E1)         // Clean light outline
+val LightIceBorderSubtle = Color(0xFFE2E8F0)   // Faint separator
 
-val ImmersiveTertiary = Color(0xFFEFB8C8)
-val ImmersiveOnTertiary = Color(0xFF492532)
+// Text / Content on Light
+val TextPrimaryLight = Color(0xFF0F172A)       // Deep slate primary text
+val TextSecondaryLight = Color(0xFF475569)     // Slate secondary text
+val TextMutedLight = Color(0xFF64748B)         // Subtle caption text
 
-// Satisfy Media & Brand Accents
-val SatisfyRed = Color(0xFFFF2A55)
-val SatisfyRedDark = Color(0xFFD60032)
-val SatisfyRedLight = Color(0xFFFF6B8B)
-val SatisfyNeonRed = Color(0xFFFF1744)
+// --- PRIMARY (ELECTRIC BLUE / SAPPHIRE) ---
+val BrandBluePrimary = Color(0xFF3B82F6)        // Vibrant Electric Royal Blue
+val BrandBlueOnPrimary = Color(0xFFFFFFFF)
+val BrandBlueContainerDark = Color(0xFF1E3A8A)  // Deep glowing blue container
+val BrandBlueOnContainerDark = Color(0xFFBFDBFE)
+val BrandBlueContainerLight = Color(0xFFDBEAFE)
+val BrandBlueOnContainerLight = Color(0xFF1E40AF)
 
-val SatisfyGold = Color(0xFFFFD54F)
-val SatisfyGoldDark = Color(0xFFFFA000)
-val SatisfyGoldLight = Color(0xFFFFE082)
-val SatisfyBlue = Color(0xFF82B1FF)
-val SatisfyGreen = Color(0xFF69F0AE)
+// --- SECONDARY (ROYAL PURPLE / NEON VIOLET) ---
+val BrandPurpleSecondary = Color(0xFF8B5CF6)    // Modern Royal Violet / Amethyst
+val BrandPurpleOnSecondary = Color(0xFFFFFFFF)
+val BrandPurpleContainerDark = Color(0xFF4C1D95) // Deep violet container
+val BrandPurpleOnContainerDark = Color(0xFFEDE9FE)
+val BrandPurpleContainerLight = Color(0xFFEDE9FE)
+val BrandPurpleOnContainerLight = Color(0xFF5B21B6)
 
-// Satisfy Dark Surface aliases mapped to Immersive UI
-val SatisfyDarkBg = ImmersiveDarkBg
-val SatisfyDarkSurface = ImmersiveDarkSurface
-val SatisfyDarkSurfaceVariant = ImmersiveDarkSurfaceVariant
-val SatisfyDarkSurfaceElevated = ImmersiveDarkSurfaceContainerHigh
+// --- TERTIARY (ELECTRIC CYAN & GOLD SWIRL) ---
+val BrandCyanTertiary = Color(0xFF06B6D4)       // Radiant Cyan
+val BrandCyanOnTertiary = Color(0xFFFFFFFF)
+val BrandCyanContainerDark = Color(0xFF164E63)
+val BrandCyanOnContainerDark = Color(0xFFCFFAFE)
 
-// Light theme fallback palette
-val ImmersiveLightBg = Color(0xFFFBF8FD)
-val ImmersiveLightSurface = Color(0xFFF7F2FA)
-val ImmersiveLightSurfaceVariant = Color(0xFFE7E0EC)
-val ImmersiveLightBorder = Color(0xFFCAC4D0)
-val ImmersiveTextPrimaryLight = Color(0xFF1D1B20)
-val ImmersiveTextSecondaryLight = Color(0xFF49454F)
-val ImmersiveTextMutedLight = Color(0xFF79747E)
+// --- BRAND ACCENT COLORS ---
+val SatisfyBlue = Color(0xFF3B82F6)             // Electric Blue
+val SatisfyElectricBlue = Color(0xFF3B82F6)     // Electric Blue
+val SatisfyBlueLight = Color(0xFF60A5FA)        // Sky Blue
+val SatisfyCyan = Color(0xFF00E5FF)             // Electric Cyan (Logo Swirl)
+val SatisfyPurple = Color(0xFF8B5CF6)           // Royal Violet
+val SatisfyPurpleDark = Color(0xFF6366F1)       // Indigo Accent
+val SatisfyPurpleLight = Color(0xFFA78BFA)      // Soft Lavender
+val SatisfyGold = Color(0xFFFFB300)             // Golden Amber (Logo Swirl & Pro)
+val SatisfyGoldDark = Color(0xFFD97706)         // Rich Amber
+val SatisfyGoldLight = Color(0xFFFFD54F)        // Radiant Gold
+val SatisfyGreen = Color(0xFF10B981)            // Emerald Success
+val SatisfyRed = Color(0xFFEF4444)              // Alert / Danger Red (Smooth Modern)
+val SatisfyRedLight = Color(0xFFF87171)
+val SatisfyRedDark = Color(0xFFB91C1C)
+val SatisfyNeonRed = Color(0xFFFF2A55)
 
+// Aliases mapped to modern theme tokens for backwards compatibility
+val ImmersiveDarkBg = DeepMidnightBg
+val ImmersiveDarkSurface = DeepMidnightSurface
+val ImmersiveDarkSurfaceVariant = DeepMidnightSurfaceVariant
+val ImmersiveDarkSurfaceContainerHigh = DeepMidnightSurfaceElevated
+val ImmersiveDarkBorder = DeepMidnightBorder
+val ImmersiveDarkBorderSubtle = DeepMidnightBorderSubtle
+val ImmersiveTextPrimaryDark = TextPrimaryDark
+val ImmersiveTextSecondaryDark = TextSecondaryDark
+val ImmersiveTextMutedDark = TextMutedDark
+
+val ImmersivePrimary = BrandBluePrimary
+val ImmersiveOnPrimary = BrandBlueOnPrimary
+val ImmersivePrimaryContainer = BrandBlueContainerDark
+val ImmersiveOnPrimaryContainer = BrandBlueOnContainerDark
+val ImmersiveSecondary = BrandPurpleSecondary
+val ImmersiveOnSecondary = BrandPurpleOnSecondary
+val ImmersiveSecondaryContainer = BrandPurpleContainerDark
+val ImmersiveOnSecondaryContainer = BrandPurpleOnContainerDark
+val ImmersiveTertiary = BrandCyanTertiary
+val ImmersiveOnTertiary = BrandCyanOnTertiary
+
+val SatisfyDarkBg = DeepMidnightBg
+val SatisfyDarkSurface = DeepMidnightSurface
+val SatisfyDarkSurfaceVariant = DeepMidnightSurfaceVariant
+val SatisfyDarkSurfaceElevated = DeepMidnightSurfaceElevated
+
+val ImmersiveLightBg = LightIceBg
+val ImmersiveLightSurface = LightIceSurface
+val ImmersiveLightSurfaceVariant = LightIceSurfaceVariant
+val ImmersiveLightBorder = LightIceBorder
+val ImmersiveTextPrimaryLight = TextPrimaryLight
+val ImmersiveTextSecondaryLight = TextSecondaryLight
+val ImmersiveTextMutedLight = TextMutedLight
+
+// --- BRAND GRADIENTS ---
+val BrandHeroGradient = Brush.linearGradient(
+    listOf(Color(0xFF00E5FF), Color(0xFF3B82F6), Color(0xFF8B5CF6), Color(0xFF6366F1))
+)
+val BrandBluePurpleGradient = Brush.linearGradient(
+    listOf(Color(0xFF2563EB), Color(0xFF7C3AED))
+)
+val BrandPurpleGlowGradient = Brush.linearGradient(
+    listOf(Color(0xFF8B5CF6), Color(0xFF4F46E5))
+)
+val BrandGoldAmberGradient = Brush.linearGradient(
+    listOf(Color(0xFFFFB300), Color(0xFFF59E0B), Color(0xFFD97706))
+)
+val BrandSurfaceGlowGradient = Brush.verticalGradient(
+    listOf(Color(0xFF1E2A45), Color(0xFF0F1523))
+)

@@ -81,6 +81,7 @@ fun ProfileScreen(
     val profileTabs = listOf("My Uploads", "Liked", "Saved", "History")
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showFullScreenAvatar by remember { mutableStateOf(false) }
     var snackbarMessage by remember { mutableStateOf<String?>(null) }
 
     // System Photo Picker for Profile Avatar
@@ -286,45 +287,70 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Avatar with Red Border & Gallery Camera Badge
+                        // Avatar with Modern Gradient Border (Tapping opens Full Screen) & Camera Icon (Only this changes picture)
                         Box(
-                            modifier = Modifier
-                                .size(84.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(3.dp)
-                                .clickable {
-                                    avatarPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                }
-                                .testTag("change_avatar_button")
+                            modifier = Modifier.size(88.dp)
                         ) {
-                            AsyncImage(
-                                model = userProfile.avatarUrl.ifBlank { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200" },
-                                contentDescription = "User Avatar",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-
-                            // Camera badge overlay on avatar
+                            // Avatar Circle (Tapping opens ONLY Full Screen view)
                             Box(
                                 modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .size(26.dp)
+                                    .size(84.dp)
                                     .clip(CircleShape)
-                                    .background(SatisfyRed)
-                                    .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
-                                contentAlignment = Alignment.Center
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(2.5.dp)
+                                    .border(
+                                        androidx.compose.foundation.BorderStroke(
+                                            2.dp,
+                                            Brush.linearGradient(
+                                                listOf(
+                                                    MaterialTheme.colorScheme.primary,
+                                                    MaterialTheme.colorScheme.secondary,
+                                                    SatisfyCyan
+                                                )
+                                            )
+                                        ),
+                                        CircleShape
+                                    )
+                                    .clickable {
+                                        showFullScreenAvatar = true
+                                    }
+                                    .testTag("avatar_fullscreen_trigger")
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.CameraAlt,
-                                    contentDescription = "Pick avatar from gallery",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(13.dp)
+                                AsyncImage(
+                                    model = userProfile.avatarUrl.ifBlank { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200" },
+                                    contentDescription = "User Avatar - Tap to view full screen",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
                                 )
+                            }
+
+                            // Small Camera Icon Badge (ONLY this triggers picking a new avatar)
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.surface),
+                                shadowElevation = 4.dp,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        avatarPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    }
+                                    .testTag("change_avatar_camera_icon")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CameraAlt,
+                                        contentDescription = "Change profile picture",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -377,26 +403,75 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // Name & Handle
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = userProfile.name.ifBlank { "Satisfy Creator" },
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Filled.Verified,
+                                contentDescription = "Verified",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Quick Switch Profile Pill
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .clickable { onOpenSwitchProfile() }
+                                .testTag("quick_switch_profile_chip")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.SwitchAccount,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Switch",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .clickable { onOpenSwitchProfile() }
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = userProfile.name.ifBlank { "Satisfy Creator" },
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = "${userProfile.handle.ifBlank { "@satisfy_creator" }} • ${userProfile.subscriberCount} • ${userUploadedPosts.size} uploads",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Icon(
-                            imageVector = Icons.Filled.Verified,
-                            contentDescription = "Verified",
-                            tint = MaterialTheme.colorScheme.primary,
+                            imageVector = Icons.Filled.ArrowDropDown,
+                            contentDescription = "Switch Profile",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     }
-
-                    Text(
-                        text = "${userProfile.handle.ifBlank { "@satisfy_creator" }} • ${userProfile.subscriberCount} • ${userUploadedPosts.size} uploads",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -421,51 +496,6 @@ fun ProfileScreen(
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.primary
                             )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Quick Gallery Actions Row
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceAround,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    avatarPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Icon(Icons.Filled.AccountCircle, contentDescription = null, modifier = Modifier.size(16.dp), tint = SatisfyRed)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Photo from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            }
-
-                            Divider(modifier = Modifier.height(20.dp).width(1.dp), color = MaterialTheme.colorScheme.outlineVariant)
-
-                            TextButton(
-                                onClick = {
-                                    bannerPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(16.dp), tint = SatisfyBlue)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Banner from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            }
                         }
                     }
 
@@ -802,183 +832,6 @@ fun ProfileScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Creator Pages & Watch Time Showcase Section
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, SatisfyRed.copy(alpha = 0.3f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(CircleShape)
-                                            .background(SatisfyRed),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.AddBusiness,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(
-                                            text = "My Creator Pages",
-                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Exclusive Watch Time & Studio for Pages",
-                                            fontSize = 11.sp,
-                                            color = SatisfyRed,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                }
-
-                                TextButton(
-                                    onClick = onOpenCreatePage,
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.textButtonColors(contentColor = SatisfyRed),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                    modifier = Modifier.testTag("create_page_quick_btn")
-                                ) {
-                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text("+ New Page", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            if (creatorPages.isEmpty()) {
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onOpenCreatePage() }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.AddCircleOutline,
-                                            contentDescription = null,
-                                            tint = SatisfyRed,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Create a New Page",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
-                                            )
-                                            Text(
-                                                text = "Create a creator page to view Watch Time analytics",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Icon(Icons.Filled.ChevronRight, contentDescription = null)
-                                    }
-                                }
-                            } else {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    creatorPages.forEach { page ->
-                                        Card(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { onOpenPageDetails(page) }
-                                                .testTag("page_card_${page.id}"),
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(10.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(42.dp)
-                                                        .clip(CircleShape)
-                                                ) {
-                                                    AsyncImage(
-                                                        model = page.avatarUrl.ifBlank { "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200" },
-                                                        contentDescription = page.name,
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        contentScale = ContentScale.Crop
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.width(10.dp))
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text(
-                                                            text = page.name,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 13.sp,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Icon(Icons.Filled.Verified, contentDescription = null, tint = SatisfyBlue, modifier = Modifier.size(13.dp))
-                                                    }
-                                                    Text(
-                                                        text = "${page.category} • ${page.handle}",
-                                                        fontSize = 11.sp,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                                Surface(
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    color = SatisfyRed.copy(alpha = 0.12f)
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Filled.HourglassBottom,
-                                                            contentDescription = null,
-                                                            tint = SatisfyRed,
-                                                            modifier = Modifier.size(12.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text(
-                                                            text = "Watch Time",
-                                                            color = SatisfyRed,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 11.sp
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
                     // Admin Dashboard Entry
                     if (isAdmin) {
                         Surface(
@@ -1246,6 +1099,97 @@ fun ProfileScreen(
             LaunchedEffect(snackbarMessage) {
                 kotlinx.coroutines.delay(3500)
                 snackbarMessage = null
+            }
+        }
+    }
+
+    // Full Screen Profile Picture Modal (View Only - No upload/edit options)
+    if (showFullScreenAvatar) {
+        Dialog(
+            onDismissRequest = { showFullScreenAvatar = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.95f))
+                    .clickable { showFullScreenAvatar = false }
+            ) {
+                // Top Header with Channel Info & Close Button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .align(Alignment.TopCenter),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = userProfile.name.ifBlank { "Profile Picture" },
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White
+                        )
+                        Text(
+                            text = userProfile.handle.ifBlank { "@satisfy_user" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showFullScreenAvatar = false },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color.White.copy(alpha = 0.15f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Close full screen",
+                            tint = Color.White
+                        )
+                    }
+                }
+
+                // Centered High-Resolution Full-Screen Avatar View (Only View, No Upload Options)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp, vertical = 80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black,
+                        border = androidx.compose.foundation.BorderStroke(
+                            3.dp,
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary,
+                                    SatisfyCyan
+                                )
+                            )
+                        ),
+                        shadowElevation = 24.dp,
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .aspectRatio(1f)
+                            .clip(CircleShape)
+                    ) {
+                        AsyncImage(
+                            model = userProfile.avatarUrl.ifBlank { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200" },
+                            contentDescription = "Full Screen Profile Picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
             }
         }
     }

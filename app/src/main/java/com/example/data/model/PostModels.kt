@@ -294,3 +294,52 @@ fun formatTimeAgo(timestamp: Long): String {
     }
 }
 
+@Entity(tableName = "recent_searches")
+data class RecentSearchEntity(
+    @PrimaryKey
+    val query: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class CreatorSearchResult(
+    val channelName: String,
+    val channelAvatar: String,
+    val creatorUid: String,
+    val pageId: Long? = null,
+    val subscriberCount: String,
+    val isVerified: Boolean = false,
+    val videoCount: Int = 0,
+    val topCategory: String = "Creator"
+)
+
+data class HashtagSearchResult(
+    val hashtag: String,
+    val count: Int
+)
+
+data class TrendingSearchItem(
+    val query: String,
+    val category: String,
+    val subtitle: String,
+    val views: String,
+    val rank: Int,
+    val isHot: Boolean = false
+)
+
+enum class SuggestionType {
+    QUERY,
+    CREATOR,
+    HASHTAG,
+    VIDEO
+}
+
+data class SearchSuggestion(
+    val text: String,
+    val type: SuggestionType,
+    val subtitle: String = "",
+    val countOrBadge: String = "",
+    val avatarOrThumb: String = "",
+    val postEntity: PostEntity? = null,
+    val creatorResult: CreatorSearchResult? = null
+)
+

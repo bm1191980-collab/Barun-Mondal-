@@ -105,6 +105,14 @@ class MainActivity : ComponentActivity() {
             val allMonetizationApplications by viewModel.allMonetizationApplications.collectAsStateWithLifecycle()
             val selectedPublicCreator by viewModel.selectedPublicCreator.collectAsStateWithLifecycle()
             val savedAccounts by viewModel.savedAccounts.collectAsStateWithLifecycle()
+            val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
+
+            // Real-Time Firebase Notifications state flows
+            val allNotifications by viewModel.allNotifications.collectAsStateWithLifecycle()
+            val unreadNotificationCount by viewModel.unreadNotificationCount.collectAsStateWithLifecycle()
+            val isFirebaseNotificationConnected by viewModel.isFirebaseNotificationConnected.collectAsStateWithLifecycle()
+            val notificationPreferences by viewModel.notificationPreferences.collectAsStateWithLifecycle()
+            val inAppToast by viewModel.inAppNotificationToast.collectAsStateWithLifecycle()
 
             var showCommentSheetForPost by remember { mutableStateOf<PostEntity?>(null) }
             var showAdminAuthDialog by remember { mutableStateOf(false) }
@@ -114,7 +122,7 @@ class MainActivity : ComponentActivity() {
             var showAddAccountDialog by remember { mutableStateOf(false) }
 
             // Handle back navigation
-            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES || currentTab == ScreenTab.PUBLIC_CREATOR_PROFILE || showCommentSheetForPost != null || showSwitchProfileDialog || showAddAccountDialog) {
+            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.NOTIFICATIONS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES || currentTab == ScreenTab.PUBLIC_CREATOR_PROFILE || showCommentSheetForPost != null || showSwitchProfileDialog || showAddAccountDialog) {
                 if (showAddAccountDialog) {
                     showAddAccountDialog = false
                 } else if (showSwitchProfileDialog) {
@@ -127,7 +135,7 @@ class MainActivity : ComponentActivity() {
                     viewModel.currentTab.value = viewModel.previousScreenTab
                 } else if (currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES) {
                     viewModel.currentTab.value = ScreenTab.PROFILE
-                } else if (currentTab == ScreenTab.SEARCH) {
+                } else if (currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.NOTIFICATIONS) {
                     viewModel.currentTab.value = ScreenTab.HOME
                 }
             }
@@ -171,9 +179,11 @@ class MainActivity : ComponentActivity() {
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),
                         topBar = {
-                            if (currentTab != ScreenTab.SHORTS && currentTab != ScreenTab.SEARCH && currentTab != ScreenTab.ADMIN && !playerState.isExpanded) {
+                            if (currentTab != ScreenTab.SHORTS && currentTab != ScreenTab.SEARCH && currentTab != ScreenTab.ADMIN && currentTab != ScreenTab.NOTIFICATIONS && !playerState.isExpanded) {
                                 SatisfyTopBar(
                                     avatarUrl = userProfile.avatarUrl,
+                                    unreadNotificationCount = unreadNotificationCount,
+                                    onNotificationsClick = { viewModel.currentTab.value = ScreenTab.NOTIFICATIONS },
                                     onSearchClick = { viewModel.currentTab.value = ScreenTab.SEARCH },
                                     onProfileClick = { viewModel.currentTab.value = ScreenTab.PROFILE },
                                     isDarkTheme = isDarkTheme,
@@ -396,14 +406,25 @@ class MainActivity : ComponentActivity() {
                                         query = searchQuery,
                                         onQueryChange = { viewModel.searchQuery.value = it },
                                         allPosts = allPosts,
+                                        recentSearches = recentSearches,
+                                        onRecordSearch = { viewModel.recordRecentSearch(it) },
+                                        onRemoveRecentSearch = { viewModel.removeRecentSearch(it) },
+                                        onClearRecentSearches = { viewModel.clearRecentSearches() },
                                         onSelectPost = { post ->
+                                            viewModel.recordRecentSearch(post.title)
                                             if (post.type == PostType.SHORT) {
                                                 viewModel.currentTab.value = ScreenTab.SHORTS
                                             } else {
                                                 viewModel.openVideo(post, expanded = true)
                                             }
                                         },
-                                        onBack = { viewModel.currentTab.value = ScreenTab.HOME }
+                                        onBack = { viewModel.currentTab.value = ScreenTab.HOME },
+                                        onCreatorClick = { channelName, creatorUid, pageId ->
+                                            viewModel.recordRecentSearch(channelName)
+                                            viewModel.openPublicCreatorProfile(channelName, creatorUid, pageId)
+                                        },
+                                        onToggleLike = { post -> viewModel.toggleLike(post) },
+                                        onToggleSave = { post -> viewModel.toggleSave(post) }
                                     )
                                 }
                                 ScreenTab.ADMIN -> {
@@ -495,6 +516,40 @@ class MainActivity : ComponentActivity() {
                                         onBack = { viewModel.currentTab.value = ScreenTab.PROFILE }
                                     )
                                 }
+                                ScreenTab.NOTIFICATIONS -> {
+                                    NotificationScreen(
+                                        notifications = allNotifications,
+                                        unreadCount = unreadNotificationCount,
+                                        isFirebaseConnected = isFirebaseNotificationConnected,
+                                        preferences = notificationPreferences,
+                                        onBack = { viewModel.currentTab.value = ScreenTab.HOME },
+                                        onNotificationClick = { notification ->
+                                            if (notification.targetType == "POST" || notification.targetType == "SHORT") {
+                                                val targetPost = allPosts.find { it.id == notification.targetId }
+                                                if (targetPost != null) {
+                                                    if (targetPost.type == PostType.SHORT) {
+                                                        viewModel.currentTab.value = ScreenTab.SHORTS
+                                                    } else {
+                                                        viewModel.openVideo(targetPost, expanded = true)
+                                                    }
+                                                }
+                                            } else if (notification.targetType == "MONETIZATION") {
+                                                viewModel.currentTab.value = ScreenTab.MONETIZATION
+                                            } else if (notification.targetType == "WALLET") {
+                                                viewModel.currentTab.value = ScreenTab.WALLET
+                                            } else if (notification.targetType == "PRO") {
+                                                viewModel.currentTab.value = ScreenTab.PRO_MEMBERSHIP
+                                            }
+                                        },
+                                        onMarkAsRead = { id, fId -> viewModel.markNotificationAsRead(id, fId) },
+                                        onMarkAllAsRead = { viewModel.markAllNotificationsAsRead() },
+                                        onTogglePin = { id -> viewModel.toggleNotificationPin(id) },
+                                        onDeleteNotification = { id, fId -> viewModel.deleteNotification(id, fId) },
+                                        onClearAll = { viewModel.clearAllNotifications() },
+                                        onUpdatePreferences = { prefs -> viewModel.updateNotificationPreferences(prefs) },
+                                        onSimulateNotification = { type, title, body -> viewModel.simulateRealTimeNotification(type, title, body) }
+                                    )
+                                }
                                 ScreenTab.PUBLIC_CREATOR_PROFILE -> {
                                     val publicProfile = selectedPublicCreator
                                     if (publicProfile != null) {
@@ -578,7 +633,8 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onWatchTimeTick = { delta ->
                                     viewModel.recordPlaybackProgress(delta)
-                                }
+                                },
+                                exoPlayer = viewModel.getOrCreateExoPlayer()
                             )
                         }
                     }
@@ -593,7 +649,8 @@ class MainActivity : ComponentActivity() {
                             playerState = playerState,
                             onExpand = { viewModel.expandPlayer() },
                             onTogglePlayPause = { viewModel.togglePlayPause() },
-                            onClose = { viewModel.closePlayer() }
+                            onClose = { viewModel.closePlayer() },
+                            exoPlayer = viewModel.getOrCreateExoPlayer()
                         )
                     }
 
@@ -695,6 +752,16 @@ class MainActivity : ComponentActivity() {
                             onDismiss = { showCommentSheetForPost = null }
                         )
                     }
+
+                    // In-App Real-Time Notification Floating Heads-Up Banner
+                    InAppNotificationBanner(
+                        toast = inAppToast,
+                        onDismiss = { viewModel.dismissInAppToast() },
+                        onClick = {
+                            viewModel.currentTab.value = ScreenTab.NOTIFICATIONS
+                        },
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
 
                     // Upload Success Floating Toast
                     if (uploadMessage != null) {

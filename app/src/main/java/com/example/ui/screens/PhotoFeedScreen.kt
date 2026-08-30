@@ -3,7 +3,9 @@ package com.example.ui.screens
 import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -62,7 +64,8 @@ fun PhotoFeedScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
+            tonalElevation = 2.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
         ) {
             Column(
                 modifier = Modifier
@@ -82,17 +85,16 @@ fun PhotoFeedScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.primaryContainer)
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
                             ) {
                                 Text(
                                     text = "${displayedPosts.size}",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                 )
                             }
                         }
@@ -105,9 +107,9 @@ fun PhotoFeedScreen(
 
                     Button(
                         onClick = onUploadPhotoClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
-                        shape = RoundedCornerShape(20.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(22.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Add,
@@ -121,7 +123,7 @@ fun PhotoFeedScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Secondary Filter Tabs (All Posts vs My Posts)
+                // Secondary Filter Tabs
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = Color.Transparent,
@@ -129,7 +131,7 @@ fun PhotoFeedScreen(
                     indicator = { tabPositions ->
                         TabRowDefaults.SecondaryIndicator(
                             Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                            color = SatisfyRed,
+                            color = MaterialTheme.colorScheme.primary,
                             height = 3.dp
                         )
                     },
@@ -144,7 +146,7 @@ fun PhotoFeedScreen(
                                     text = title,
                                     fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 13.sp,
-                                    color = if (selectedTab == index) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (selectedTab == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         )
@@ -156,7 +158,7 @@ fun PhotoFeedScreen(
         // Posts Stream
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 90.dp, top = 8.dp),
+            contentPadding = PaddingValues(bottom = 90.dp, top = 12.dp, start = 12.dp, end = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(displayedPosts, key = { it.id }) { post ->
@@ -179,19 +181,19 @@ fun PhotoFeedScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                modifier = Modifier
-                                    .size(72.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
+                            Surface(
+                                modifier = Modifier.size(72.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                             ) {
-                                Icon(
-                                    imageVector = if (selectedTab == 1) Icons.Outlined.Person else Icons.Outlined.DynamicFeed,
-                                    contentDescription = "No posts",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(36.dp)
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (selectedTab == 1) Icons.Outlined.Person else Icons.Outlined.DynamicFeed,
+                                        contentDescription = "No posts",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
@@ -209,7 +211,7 @@ fun PhotoFeedScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(
                                 onClick = onUploadPhotoClick,
-                                colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                 shape = RoundedCornerShape(24.dp),
                                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                             ) {
@@ -250,22 +252,25 @@ fun PhotoPostCard(
     }
 
     val heartScale by animateFloatAsState(
-        targetValue = if (showHeartAnimation) 1.2f else 0f,
+        targetValue = if (showHeartAnimation) 1.25f else 0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "heart_scale"
+        label = "heartScale"
     )
 
     Surface(
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        shadowElevation = 2.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Post Author Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -277,25 +282,34 @@ fun PhotoPostCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
-                            .background(SatisfyDarkSurfaceVariant)
+                            .border(
+                                1.dp,
+                                Brush.linearGradient(
+                                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+                                ),
+                                CircleShape
+                            )
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
                     ) {
                         if (post.channelAvatar.isNotBlank()) {
                             AsyncImage(
                                 model = post.channelAvatar,
                                 contentDescription = post.channelName,
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(1.dp)
+                                    .clip(CircleShape),
                                 contentScale = ContentScale.Crop
                             )
                         } else {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = post.channelName.take(1),
-                                    fontWeight = FontWeight.Bold,
-                                    color = SatisfyRed
-                                )
-                            }
+                            Text(
+                                text = post.channelName.take(1),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
 
@@ -313,7 +327,7 @@ fun PhotoPostCard(
                                 Icon(
                                     imageVector = Icons.Filled.CheckCircle,
                                     contentDescription = "Verified",
-                                    tint = SatisfyRedLight,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(13.dp)
                                 )
                             }
@@ -327,15 +341,23 @@ fun PhotoPostCard(
                 }
 
                 // Follow / Subscribe Button
-                TextButton(
-                    onClick = onToggleSubscribe,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (post.isSubscribed) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (post.isSubscribed) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onToggleSubscribe() }
                 ) {
                     Text(
                         text = if (post.isSubscribed) "Following" else "+ Follow",
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (post.isSubscribed) MaterialTheme.colorScheme.onSurfaceVariant else SatisfyRed
+                        color = if (post.isSubscribed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }
@@ -346,7 +368,7 @@ fun PhotoPostCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1.1f)
-                        .background(Color.Black)
+                        .background(Color(0xFF0F1523))
                         .pointerInput(Unit) {
                             detectTapGestures(
                                 onDoubleTap = {
@@ -371,9 +393,9 @@ fun PhotoPostCard(
                         Icon(
                             imageVector = Icons.Filled.Favorite,
                             contentDescription = null,
-                            tint = SatisfyRed,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
-                                .size(100.dp)
+                                .size(110.dp)
                                 .scale(heartScale)
                         )
                     }
@@ -403,7 +425,7 @@ fun PhotoPostCard(
                         Icon(
                             imageVector = if (post.isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                             contentDescription = "Like Post",
-                            tint = if (post.isLiked) SatisfyRed else MaterialTheme.colorScheme.onSurface,
+                            tint = if (post.isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -411,7 +433,7 @@ fun PhotoPostCard(
                             text = "${post.likeCount}",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            color = if (post.isLiked) SatisfyRed else MaterialTheme.colorScheme.onSurface
+                            color = if (post.isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -481,7 +503,7 @@ fun PhotoPostCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp)
+                    .padding(horizontal = 14.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = post.title,
@@ -504,7 +526,7 @@ fun PhotoPostCard(
                         text = post.tags,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = SatisfyBlue
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
 
@@ -517,7 +539,7 @@ fun PhotoPostCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 }

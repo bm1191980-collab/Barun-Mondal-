@@ -38,6 +38,16 @@ import com.example.data.model.SavedAccountEntity
 import com.example.data.model.UserProfile
 import com.example.ui.theme.*
 
+data class QuickDemoPersona(
+    val name: String,
+    val handle: String,
+    val email: String,
+    val bio: String,
+    val avatarUrl: String,
+    val isPro: Boolean = false,
+    val subscriberCount: String = "5.8K subscribers"
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SwitchProfileDialog(
@@ -58,7 +68,7 @@ fun SwitchProfileDialog(
         Surface(
             modifier = modifier
                 .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.85f)
+                .fillMaxHeight(0.88f)
                 .clip(RoundedCornerShape(28.dp)),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp
@@ -101,7 +111,7 @@ fun SwitchProfileDialog(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Select an account or add a new one",
+                                text = "${savedAccounts.size} account${if (savedAccounts.size != 1) "s" else ""} logged in • Instant switch",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -151,7 +161,7 @@ fun SwitchProfileDialog(
                         item {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "SWITCH TO OTHER ACCOUNT (${otherAccounts.size})",
+                                text = "OTHER LOGGED-IN ACCOUNTS (${otherAccounts.size})",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -170,18 +180,18 @@ fun SwitchProfileDialog(
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Bottom Action Bar: Add Account Button
                 Button(
                     onClick = onOpenAddAccount,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(52.dp)
                         .testTag("add_new_account_btn"),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -224,7 +234,7 @@ fun SwitchProfileDialog(
                 },
                 text = {
                     Text(
-                        text = "Are you sure you want to remove '${accountToDelete?.name}' from this device? Data on device will remain isolated."
+                        text = "Are you sure you want to remove '${accountToDelete?.name}' from this device? All channel posts and local data will be preserved."
                     )
                 },
                 confirmButton = {
@@ -274,7 +284,7 @@ fun ActiveAccountCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
+            // Avatar with Active Badge
             Box(modifier = Modifier.size(52.dp)) {
                 AsyncImage(
                     model = profile.avatarUrl.ifBlank { "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200" },
@@ -429,7 +439,7 @@ fun SavedAccountItemCard(
                     }
                 }
                 Text(
-                    text = account.handle,
+                    text = "${account.handle} • ${account.subscriberCount}",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -486,6 +496,8 @@ fun AddAccountDialog(
     onDismiss: () -> Unit,
     onSaveAccount: (name: String, handle: String, email: String, bio: String, avatarUrl: String, bannerUrl: String, isPro: Boolean) -> Unit
 ) {
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Custom, 1: Quick Connect
+
     var name by remember { mutableStateOf("") }
     var handle by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -499,7 +511,44 @@ fun AddAccountDialog(
         "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
         "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200",
         "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200",
-        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200"
+        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200",
+        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+        "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200"
+    )
+
+    val quickDemoPersonas = listOf(
+        QuickDemoPersona(
+            name = "Cyber Pulse",
+            handle = "@cyberpulse",
+            email = "cyber.pulse@satisfy.app",
+            bio = "Synthesizer jams, neon ambient vibes & responsive light installations 🎧",
+            avatarUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200",
+            isPro = true
+        ),
+        QuickDemoPersona(
+            name = "Chef Marco",
+            handle = "@chef_marco",
+            email = "marco.culinary@satisfy.app",
+            bio = "Ultra-crispy culinary ASMR, sourdough scoring & artisanal pasta crafting 🍳",
+            avatarUrl = "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=200",
+            isPro = false
+        ),
+        QuickDemoPersona(
+            name = "Cosmic Voyages",
+            handle = "@cosmicvoyages",
+            email = "cosmic@satisfy.app",
+            bio = "Deep space telescope captures, 4K aurora borealis & soothing cosmic drift 🌌",
+            avatarUrl = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=200",
+            isPro = true
+        ),
+        QuickDemoPersona(
+            name = "Luna Pottery",
+            handle = "@lunapottery",
+            email = "luna.pottery@satisfy.app",
+            bio = "Ceramic wheel throwing, glaze drip time-lapses & relaxing clay art 🏺",
+            avatarUrl = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
+            isPro = false
+        )
     )
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -517,7 +566,7 @@ fun AddAccountDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.88f)
+                .fillMaxHeight(0.90f)
                 .clip(RoundedCornerShape(28.dp)),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 8.dp
@@ -551,11 +600,11 @@ fun AddAccountDialog(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Add New Account",
+                                text = "Add Account",
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                             )
                             Text(
-                                text = "Create or link another profile",
+                                text = "Create custom or link existing profile",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -567,225 +616,394 @@ fun AddAccountDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                // Tabs: Custom Profile / Quick Connect
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    divider = {}
                 ) {
-                    // Avatar Selection Section
-                    item {
-                        Text(
-                            text = "CHOOSE AVATAR",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Selected Avatar Preview
-                            Box(modifier = Modifier.size(56.dp)) {
-                                AsyncImage(
-                                    model = selectedAvatarUrl,
-                                    contentDescription = "Avatar Preview",
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape)
-                                        .border(2.dp, SatisfyRed, CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-
-                            // Custom Gallery Pick Button
-                            OutlinedButton(
-                                onClick = {
-                                    photoPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Gallery Photo", fontSize = 12.sp)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Presets
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(presetAvatars) { url ->
-                                AsyncImage(
-                                    model = url,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                        .border(
-                                            width = if (selectedAvatarUrl == url) 2.dp else 1.dp,
-                                            color = if (selectedAvatarUrl == url) SatisfyRed else MaterialTheme.colorScheme.outlineVariant,
-                                            shape = CircleShape
-                                        )
-                                        .clickable { selectedAvatarUrl = url },
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                        }
-                    }
-
-                    // Name Input
-                    item {
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text("Display Name") },
-                            placeholder = { Text("e.g. Alex Rivera") },
-                            leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("add_account_name_input")
-                        )
-                    }
-
-                    // Handle Input
-                    item {
-                        OutlinedTextField(
-                            value = handle,
-                            onValueChange = { handle = it },
-                            label = { Text("Handle / Username") },
-                            placeholder = { Text("e.g. @alex_satisfy") },
-                            leadingIcon = { Icon(Icons.Filled.AlternateEmail, contentDescription = null) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("add_account_handle_input")
-                        )
-                    }
-
-                    // Email Input
-                    item {
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("Email Address") },
-                            placeholder = { Text("e.g. alex@example.com") },
-                            leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("add_account_email_input")
-                        )
-                    }
-
-                    // Bio Input
-                    item {
-                        OutlinedTextField(
-                            value = bio,
-                            onValueChange = { bio = it },
-                            label = { Text("Channel Bio") },
-                            placeholder = { Text("Tell the community what you create...") },
-                            leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) },
-                            minLines = 2,
-                            maxLines = 3,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    // Pro Toggle Option
-                    item {
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Filled.WorkspacePremium,
-                                        contentDescription = null,
-                                        tint = SatisfyGold,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(
-                                            text = "Enable PRO Access",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
-                                        Text(
-                                            text = "Unlock VIP badge and high tier features",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                Switch(
-                                    checked = isPro,
-                                    onCheckedChange = { isPro = it }
-                                )
-                            }
-                        }
-                    }
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = {
+                            Text(
+                                "Custom Profile",
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp
+                            )
+                        },
+                        icon = { Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = {
+                            Text(
+                                "Quick Connect",
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp
+                            )
+                        },
+                        icon = { Icon(Icons.Filled.FlashOn, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Submit Button
-                Button(
-                    onClick = {
-                        val finalName = name.trim().ifBlank { "Satisfy Member" }
-                        val finalHandle = if (handle.trim().startsWith("@")) handle.trim() else "@${handle.trim().ifBlank { "user_" + (1000..9999).random() }}"
-                        val finalEmail = email.trim().ifBlank { "member${(1000..9999).random()}@satisfy.app" }
-                        val finalBio = bio.trim().ifBlank { "Creating satisfying moments ✨" }
-                        onSaveAccount(
-                            finalName,
-                            finalHandle,
-                            finalEmail,
-                            finalBio,
-                            selectedAvatarUrl,
-                            "",
-                            isPro
+                if (selectedTab == 0) {
+                    // Custom Profile Creation Form
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Avatar Selection Section
+                        item {
+                            Text(
+                                text = "CHOOSE AVATAR",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Selected Avatar Preview
+                                Box(modifier = Modifier.size(56.dp)) {
+                                    AsyncImage(
+                                        model = selectedAvatarUrl,
+                                        contentDescription = "Avatar Preview",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape)
+                                            .border(2.dp, SatisfyRed, CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+
+                                // Custom Gallery Pick Button
+                                OutlinedButton(
+                                    onClick = {
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Pick from Gallery", fontSize = 12.sp)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Presets
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(presetAvatars) { url ->
+                                    AsyncImage(
+                                        model = url,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(CircleShape)
+                                            .border(
+                                                width = if (selectedAvatarUrl == url) 2.dp else 1.dp,
+                                                color = if (selectedAvatarUrl == url) SatisfyRed else MaterialTheme.colorScheme.outlineVariant,
+                                                shape = CircleShape
+                                            )
+                                            .clickable { selectedAvatarUrl = url },
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                        }
+
+                        // Name Input
+                        item {
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = { name = it },
+                                label = { Text("Display Name") },
+                                placeholder = { Text("e.g. Alex Rivera") },
+                                leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("add_account_name_input")
+                            )
+                        }
+
+                        // Handle Input
+                        item {
+                            OutlinedTextField(
+                                value = handle,
+                                onValueChange = { handle = it },
+                                label = { Text("Handle / Username") },
+                                placeholder = { Text("e.g. @alex_satisfy") },
+                                leadingIcon = { Icon(Icons.Filled.AlternateEmail, contentDescription = null) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("add_account_handle_input")
+                            )
+                        }
+
+                        // Email Input
+                        item {
+                            OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it },
+                                label = { Text("Email Address") },
+                                placeholder = { Text("e.g. alex@satisfy.app") },
+                                leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("add_account_email_input")
+                            )
+                        }
+
+                        // Bio Input
+                        item {
+                            OutlinedTextField(
+                                value = bio,
+                                onValueChange = { bio = it },
+                                label = { Text("Channel Bio") },
+                                placeholder = { Text("Tell the community what you create...") },
+                                leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) },
+                                minLines = 2,
+                                maxLines = 3,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        // Pro Toggle Option
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.WorkspacePremium,
+                                            contentDescription = null,
+                                            tint = SatisfyGold,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = "Enable PRO Access",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                            Text(
+                                                text = "VIP badge & unlocked creator tier",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Switch(
+                                        checked = isPro,
+                                        onCheckedChange = { isPro = it }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Submit Button
+                    Button(
+                        onClick = {
+                            val finalName = name.trim().ifBlank { "Satisfy Member" }
+                            val finalHandle = if (handle.trim().startsWith("@")) handle.trim() else "@${handle.trim().ifBlank { "user_" + (1000..9999).random() }}"
+                            val finalEmail = email.trim().ifBlank { "member${(1000..9999).random()}@satisfy.app" }
+                            val finalBio = bio.trim().ifBlank { "Creating satisfying moments ✨" }
+                            onSaveAccount(
+                                finalName,
+                                finalHandle,
+                                finalEmail,
+                                finalBio,
+                                selectedAvatarUrl,
+                                "",
+                                isPro
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .testTag("save_and_switch_account_btn"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SatisfyRed,
+                            contentColor = Color.White
                         )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("save_and_switch_account_btn"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SatisfyRed,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Create & Switch to Account",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
+                    ) {
+                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Create & Switch Profile",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                } else {
+                    // Quick Connect / Demo Persona Tab
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "Select any creator account to instantly sign in and switch profile without losing existing channels.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+
+                        items(quickDemoPersonas) { persona ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onSaveAccount(
+                                            persona.name,
+                                            persona.handle,
+                                            persona.email,
+                                            persona.bio,
+                                            persona.avatarUrl,
+                                            "",
+                                            persona.isPro
+                                        )
+                                    },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    AsyncImage(
+                                        model = persona.avatarUrl,
+                                        contentDescription = persona.name,
+                                        modifier = Modifier
+                                            .size(46.dp)
+                                            .clip(CircleShape)
+                                            .border(1.5.dp, SatisfyRed.copy(alpha = 0.6f), CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = persona.name,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (persona.isPro) {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = Icons.Filled.Verified,
+                                                    contentDescription = "PRO",
+                                                    tint = SatisfyGold,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "${persona.handle} • ${persona.subscriberCount}",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = persona.bio,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    FilledTonalButton(
+                                        onClick = {
+                                            onSaveAccount(
+                                                persona.name,
+                                                persona.handle,
+                                                persona.email,
+                                                persona.bio,
+                                                persona.avatarUrl,
+                                                "",
+                                                persona.isPro
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(14.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = SatisfyRed.copy(alpha = 0.15f),
+                                            contentColor = SatisfyRed
+                                        )
+                                    ) {
+                                        Text("Connect", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

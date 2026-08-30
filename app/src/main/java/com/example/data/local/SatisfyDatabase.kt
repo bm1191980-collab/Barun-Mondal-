@@ -29,9 +29,11 @@ import com.example.data.model.*
         SavedAccountEntity::class,
         UserLikeEntity::class,
         UserSavedEntity::class,
-        UserSubscriptionEntity::class
+        UserSubscriptionEntity::class,
+        RecentSearchEntity::class,
+        NotificationEntity::class
     ],
-    version = 7,
+    version = 9,
     exportSchema = false
 )
 abstract class SatisfyDatabase : RoomDatabase() {
@@ -54,6 +56,8 @@ abstract class SatisfyDatabase : RoomDatabase() {
     abstract fun monetizationDao(): MonetizationDao
     abstract fun savedAccountDao(): SavedAccountDao
     abstract fun userInteractionDao(): UserInteractionDao
+    abstract fun recentSearchDao(): RecentSearchDao
+    abstract fun notificationDao(): NotificationDao
 
     companion object {
         @Volatile

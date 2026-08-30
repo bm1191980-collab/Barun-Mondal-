@@ -69,24 +69,32 @@ fun ShortsScreen(
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Filled.Bolt,
-                    contentDescription = null,
-                    tint = SatisfyRed,
-                    modifier = Modifier.size(64.dp)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    modifier = Modifier.size(80.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.Bolt,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(44.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "No Shorts available yet",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = 18.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onUploadShortClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
-                    shape = RoundedCornerShape(20.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(24.dp)
                 ) {
                     Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
@@ -109,7 +117,7 @@ fun ShortsScreen(
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 0 // Don't pre-render adjacent players to save memory & prevent multiple audio
+            beyondViewportPageCount = 0
         ) { page ->
             val short = shorts[page]
             val isCurrentPage = page == pagerState.currentPage
@@ -134,7 +142,7 @@ fun ShortsScreen(
             )
         }
 
-        // Top Gradient Shadow & Header (Fixed over Pager)
+        // Top Gradient Shadow & Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -232,7 +240,7 @@ private fun ShortPageItem(
             SatisfyVideoEngine.createExoPlayer(context).apply {
                 val mediaItem = SatisfyVideoEngine.createMediaItem(short.mediaUrl, PostType.SHORT)
                 setMediaItem(mediaItem)
-                repeatMode = Player.REPEAT_MODE_OFF // Off so STATE_ENDED triggers 5-second countdown!
+                repeatMode = Player.REPEAT_MODE_OFF
                 playWhenReady = !isUserPaused
                 prepare()
             }
@@ -252,12 +260,10 @@ private fun ShortPageItem(
                     playbackError = null
                     showNextCountdown = false
                 } else if (state == Player.STATE_ENDED) {
-                    // Video finished: trigger auto-advance countdown if next video exists
                     if (nextShort != null) {
                         showNextCountdown = true
                         countdownSeconds = 5
                     } else {
-                        // Last video in playlist: loop cleanly
                         exoPlayer.seekTo(0)
                         exoPlayer.play()
                     }
@@ -279,7 +285,7 @@ private fun ShortPageItem(
         }
     }
 
-    // Lifecycle Observer: Pause when app in background, resume when in foreground
+    // Lifecycle Observer
     DisposableEffect(lifecycleOwner, exoPlayer) {
         if (exoPlayer == null) return@DisposableEffect onDispose {}
 
@@ -345,7 +351,7 @@ private fun ShortPageItem(
                 }
             }
     ) {
-        // Video Surface (or Thumbnail Placeholder if inactive)
+        // Video Surface
         if (isCurrentPage && exoPlayer != null) {
             AndroidView(
                 factory = { ctx ->
@@ -365,7 +371,6 @@ private fun ShortPageItem(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // High quality thumbnail while scrolling or unselected
             AsyncImage(
                 model = if (short.thumbnailUrl.isNotBlank()) short.thumbnailUrl else short.mediaUrl,
                 contentDescription = short.title,
@@ -383,7 +388,7 @@ private fun ShortPageItem(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    color = SatisfyRed,
+                    color = MaterialTheme.colorScheme.primary,
                     strokeWidth = 3.dp,
                     modifier = Modifier.size(44.dp)
                 )
@@ -400,8 +405,8 @@ private fun ShortPageItem(
                 contentAlignment = Alignment.Center
             ) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = SatisfyDarkSurface),
-                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.fillMaxWidth(0.85f)
                 ) {
                     Column(
@@ -411,21 +416,21 @@ private fun ShortPageItem(
                         Icon(
                             imageVector = Icons.Filled.WifiOff,
                             contentDescription = null,
-                            tint = SatisfyRed,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(40.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = "Playback Error",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 16.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = playbackError ?: "Unable to stream video",
                             fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -440,7 +445,7 @@ private fun ShortPageItem(
                                     player.play()
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(20.dp)
                         ) {
                             Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -481,20 +486,20 @@ private fun ShortPageItem(
                 contentAlignment = Alignment.Center
             ) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = SatisfyDarkSurface),
-                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(22.dp),
                     modifier = Modifier.fillMaxWidth(0.9f)
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier.padding(22.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // Countdown Ring
                         Box(contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(
                                 progress = { countdownSeconds / 5f },
-                                color = SatisfyRed,
-                                trackColor = Color.White.copy(alpha = 0.2f),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                                 strokeWidth = 4.dp,
                                 modifier = Modifier.size(68.dp)
                             )
@@ -502,7 +507,7 @@ private fun ShortPageItem(
                                 text = "$countdownSeconds",
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.Black,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
@@ -512,7 +517,7 @@ private fun ShortPageItem(
                             text = "Up Next",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = SatisfyRed
+                            color = MaterialTheme.colorScheme.primary
                         )
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -521,7 +526,7 @@ private fun ShortPageItem(
                             text = nextShort.title,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
@@ -532,7 +537,7 @@ private fun ShortPageItem(
                         Text(
                             text = "@${nextShort.channelName}",
                             fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Spacer(modifier = Modifier.height(20.dp))
@@ -550,7 +555,7 @@ private fun ShortPageItem(
                                 },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(20.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
                                 Icon(imageVector = Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -564,7 +569,7 @@ private fun ShortPageItem(
                                 },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(20.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = SatisfyRed)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
                                 Icon(imageVector = Icons.Filled.SkipNext, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -604,9 +609,19 @@ private fun ShortPageItem(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
-                        .background(if (short.isLiked) SatisfyRed else Color.Black.copy(alpha = 0.5f)),
+                        .background(
+                            if (short.isLiked) {
+                                Brush.linearGradient(
+                                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+                                )
+                            } else {
+                                Brush.linearGradient(
+                                    listOf(Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.55f))
+                                )
+                            }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -632,9 +647,19 @@ private fun ShortPageItem(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
-                        .background(if (short.isDisliked) SatisfyRed else Color.Black.copy(alpha = 0.5f)),
+                        .background(
+                            if (short.isDisliked) {
+                                Brush.linearGradient(
+                                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+                                )
+                            } else {
+                                Brush.linearGradient(
+                                    listOf(Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.55f))
+                                )
+                            }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -655,9 +680,9 @@ private fun ShortPageItem(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f)),
+                        .background(Color.Black.copy(alpha = 0.55f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -694,9 +719,9 @@ private fun ShortPageItem(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f)),
+                        .background(Color.Black.copy(alpha = 0.55f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -710,20 +735,24 @@ private fun ShortPageItem(
                 Text("Share", color = Color.White, fontSize = 11.sp)
             }
 
-            // Spinning Sound Track Disc
+            // Spinning Sound Track Disc with blue & purple gradient center
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(42.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF222222))
+                    .background(Color(0xFF1E293B))
                     .rotate(if (!isUserPaused && !showNextCountdown) rotationAngle else 0f),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
-                        .size(16.dp)
+                        .size(18.dp)
                         .clip(CircleShape)
-                        .background(SatisfyRed)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+                            )
+                        )
                 )
             }
         }
@@ -735,16 +764,15 @@ private fun ShortPageItem(
                 .fillMaxWidth(0.78f)
                 .padding(start = 16.dp, bottom = 90.dp)
         ) {
-            // Creator Row: Avatar + Handle + Subscribe
+            // Creator Row
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Clickable Avatar to Creator Profile
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
-                        .background(SatisfyDarkSurfaceVariant)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { onCreatorClick() }
                 ) {
                     if (short.channelAvatar.isNotBlank()) {
@@ -773,12 +801,12 @@ private fun ShortPageItem(
                 Button(
                     onClick = onToggleSubscribe,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (short.isSubscribed) Color.White.copy(alpha = 0.2f) else SatisfyRed,
+                        containerColor = if (short.isSubscribed) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary,
                         contentColor = Color.White
                     ),
-                    shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.height(28.dp)
+                    shape = RoundedCornerShape(18.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(30.dp)
                 ) {
                     Text(
                         text = if (short.isSubscribed) "Subscribed" else "Subscribe",

@@ -1,0 +1,173 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == 'admin@satisfy.app' ||
+        request.auth.token.email == 'owner@satisfy.app' ||
+        exists(/databases/$(database)/documents/admin_users/$(request.auth.uid))
+      );
+    }
+
+    function isValidPost() {
+      return request.resource.data.title is string &&
+             request.resource.data.title.size() > 0 &&
+             request.resource.data.title.size() <= 200 &&
+             request.resource.data.creatorUid == request.auth.uid;
+    }
+
+    function isValidComment() {
+      return request.resource.data.text is string &&
+             request.resource.data.text.size() > 0 &&
+             request.resource.data.text.size() <= 2000 &&
+             request.resource.data.authorUid == request.auth.uid;
+    }
+
+    // 1. User Profiles & Settings
+    match /users/{userId} {
+      // Anyone logged in can read basic user profile (display name, avatar, bio)
+      allow read: if isAuthenticated();
+      // Only the authenticated account owner or admin can create/update their profile
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+
+      // User's private wallet & payment information
+      match /wallet/{walletId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // User's pro subscriptions
+      match /subscriptions/{subId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // User's watch history
+      match /history/{historyId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User's saved / bookmarked items
+      match /saved/{savedId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // 2. Posts (Videos, Shorts, Photos)
+    match /posts/{postId} {
+      // Public read for approved posts; creators can read their own pending/rejected posts; admins can read all
+      allow read: if (resource.data.status == 'APPROVED' || resource.data.status == 'VERIFIED') ||
+                     (isAuthenticated() && resource.data.creatorUid == request.auth.uid) ||
+                     isAdmin();
+
+      // Authenticated creators can submit new posts
+      allow create: if isAuthenticated() && isValidPost();
+
+      // Only the author or an admin can update or delete
+      allow update: if isAuthenticated() && (
+        (resource.data.creatorUid == request.auth.uid && request.resource.data.creatorUid == request.auth.uid) ||
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (resource.data.creatorUid == request.auth.uid || isAdmin());
+
+      // Nested comments under posts
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuthenticated() && isValidComment();
+        allow update, delete: if isAuthenticated() && (
+          resource.data.authorUid == request.auth.uid ||
+          isAdmin()
+        );
+      }
+    }
+
+    // 3. User Interactions (Likes, Saves, Channel Subscriptions)
+    match /interactions/{interactionId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // 4. Notifications
+    match /notifications/{notificationId} {
+      // Users can only read and manage their own notifications
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Authenticated users or cloud functions can deliver notifications to users
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 5. Creator Pages
+    match /creator_pages/{pageId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+    }
+
+    // 6. Creator Monetization Applications
+    match /monetization_applications/{appId} {
+      allow read: if isAuthenticated() && (
+        resource.data.applicantUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && request.resource.data.applicantUid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // 7. Owner Support Chats
+    match /owner_chats/{chatId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create, update: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/owner_chats/$(chatId)).data.userId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated() && (
+          request.resource.data.senderId == request.auth.uid ||
+          isAdmin()
+        );
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // 8. Admin Users & Security
+    match /admin_users/{adminId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 9. Audit Logs & System Telemetry
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Immutable audit trails
+    }
+
+    // 10. App Configuration & System Settings
+    match /app_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

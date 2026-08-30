@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.annotation.OptIn
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -24,31 +27,37 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import com.example.ui.theme.SatisfyGold
-import com.example.ui.theme.SatisfyRed
+import com.example.ui.theme.*
 import com.example.ui.viewmodel.PlayerState
 import kotlin.math.roundToInt
 
 /**
  * Floating Picture-in-Picture (PiP) Mini Player.
- * - Draggable to any screen corner or position with bounds clamping.
- * - Displays active video thumbnail/stream with title & channel.
- * - Real-time progress bar.
- * - Play/Pause, Expand/Fullscreen, and Close controls.
- * - Allows full background interaction with other app features, swipe, and search.
+ * - Live continuous video & audio playback after minimizing.
+ * - Resumes full screen at the exact timestamp when expanded.
+ * - Play/Pause, Full Screen (Expand), and Close controls.
+ * - Draggable anywhere across the screen.
  */
+@OptIn(UnstableApi::class)
 @Composable
 fun FloatingMiniPlayer(
     playerState: PlayerState,
     onExpand: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onClose: () -> Unit,
+    exoPlayer: ExoPlayer? = null,
     modifier: Modifier = Modifier
 ) {
     val post = playerState.activePost ?: return
@@ -59,8 +68,8 @@ fun FloatingMiniPlayer(
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
 
-    val playerWidthDp = 240.dp
-    val playerHeightDp = 84.dp
+    val playerWidthDp = 270.dp
+    val playerHeightDp = 92.dp
 
     val playerWidthPx = with(density) { playerWidthDp.toPx() }
     val playerHeightPx = with(density) { playerHeightDp.toPx() }
@@ -74,29 +83,40 @@ fun FloatingMiniPlayer(
     }
 
     // Breathing border glow animation while playing
-    val infiniteTransition = rememberInfiniteTransition(label = "border_glow")
+    val infiniteTransition = rememberInfiniteTransition(label = "miniPlayerGlow")
     val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.85f,
+        initialValue = 0.35f,
+        targetValue = 0.95f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "glow_alpha"
+        label = "glowAlpha"
     )
+
+    fun formatMiniTimestamp(seconds: Float): String {
+        val total = seconds.toInt().coerceAtLeast(0)
+        val m = total / 60
+        val s = total % 60
+        return String.format(java.util.Locale.US, "%02d:%02d", m, s)
+    }
 
     Box(
         modifier = modifier
             .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
             .width(playerWidthDp)
             .height(playerHeightDp)
-            .shadow(16.dp, RoundedCornerShape(16.dp), spotColor = SatisfyRed.copy(alpha = 0.5f))
-            .clip(RoundedCornerShape(16.dp))
+            .shadow(
+                16.dp,
+                RoundedCornerShape(18.dp),
+                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+            )
+            .clip(RoundedCornerShape(18.dp))
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF1E1E28),
-                        Color(0xFF121218)
+                        Color(0xFF131D31),
+                        Color(0xFF0C121E)
                     )
                 )
             )
@@ -116,15 +136,19 @@ fun FloatingMiniPlayer(
         // Glowing outline
         Surface(
             modifier = Modifier.fillMaxSize(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             color = Color.Transparent,
             border = BorderStroke(
                 width = 1.5.dp,
-                color = if (playerState.isPlaying) SatisfyRed.copy(alpha = glowAlpha) else Color.White.copy(alpha = 0.15f)
+                color = if (playerState.isPlaying) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = glowAlpha)
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                }
             )
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Progress Bar
+                // Top Progress Bar with gradient
                 LinearProgressIndicator(
                     progress = {
                         if (playerState.durationSeconds > 0f) {
@@ -133,9 +157,9 @@ fun FloatingMiniPlayer(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(2.5.dp),
-                    color = SatisfyRed,
-                    trackColor = Color.White.copy(alpha = 0.1f)
+                        .height(3.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color.White.copy(alpha = 0.12f)
                 )
 
                 Row(
@@ -144,14 +168,32 @@ fun FloatingMiniPlayer(
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Video Thumbnail with Play badge & drag indicator
+                    // Video View / Live Player Surface with drag indicator
                     Box(
                         modifier = Modifier
-                            .size(width = 68.dp, height = 52.dp)
+                            .size(width = 82.dp, height = 60.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(Color.Black)
                     ) {
-                        if (post.thumbnailUrl.isNotBlank()) {
+                        if (exoPlayer != null) {
+                            AndroidView(
+                                factory = { ctx ->
+                                    PlayerView(ctx).apply {
+                                        player = exoPlayer
+                                        useController = false
+                                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                        layoutParams = FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                    }
+                                },
+                                update = { playerView ->
+                                    playerView.player = exoPlayer
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (post.thumbnailUrl.isNotBlank()) {
                             AsyncImage(
                                 model = post.thumbnailUrl,
                                 contentDescription = post.title,
@@ -160,40 +202,29 @@ fun FloatingMiniPlayer(
                             )
                         }
 
-                        // Gradient overlay on thumbnail
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
-                                    )
-                                )
-                        )
-
-                        // Mini Drag Icon hint at top-left
+                        // Mini Drag Handle hint at top-left
                         Icon(
                             imageVector = Icons.Filled.DragHandle,
                             contentDescription = "Drag to reposition",
-                            tint = Color.White.copy(alpha = 0.8f),
+                            tint = Color.White.copy(alpha = 0.85f),
                             modifier = Modifier
                                 .align(Alignment.TopStart)
                                 .padding(2.dp)
                                 .size(14.dp)
                         )
 
-                        // HD / Live badge
+                        // PIP / LIVE badge
                         Surface(
-                            shape = RoundedCornerShape(3.dp),
-                            color = if (playerState.isPlaying) SatisfyRed else Color.Black.copy(alpha = 0.7f),
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (playerState.isPlaying) SatisfyRed else Color.Black.copy(alpha = 0.75f),
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding(2.dp)
                         ) {
                             Text(
-                                text = if (playerState.isPlaying) "PIP" else "PAUSE",
+                                text = if (playerState.isPlaying) "LIVE" else "PAUSE",
                                 color = Color.White,
-                                fontSize = 7.5.sp,
+                                fontSize = 8.sp,
                                 fontWeight = FontWeight.Black,
                                 modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                             )
@@ -202,17 +233,17 @@ fun FloatingMiniPlayer(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Title & Channel info
+                    // Title, Channel & Real-Time Timestamp
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(end = 4.dp),
+                            .padding(end = 2.dp),
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
                             text = post.title,
                             color = Color.White,
-                            fontSize = 11.5.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -220,54 +251,67 @@ fun FloatingMiniPlayer(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = post.channelName,
-                            color = SatisfyGold,
-                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                            fontSize = 9.5.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${formatMiniTimestamp(playerState.currentPositionSeconds)} / ${formatMiniTimestamp(playerState.durationSeconds)}",
+                            color = Color.White.copy(alpha = 0.65f),
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Normal
+                        )
                     }
 
-                    // Quick Actions (Play/Pause, Fullscreen/Expand, Close)
+                    // Quick Actions: Play/Pause, Full Screen, Close
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy((-2).dp)
+                        horizontalArrangement = Arrangement.spacedBy((-4).dp)
                     ) {
-                        // Play / Pause Button
+                        // 1. Play / Pause Control
                         IconButton(
                             onClick = onTogglePlayPause,
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("mini_player_play_pause")
                         ) {
                             Icon(
                                 imageVector = if (playerState.isPlaying) Icons.Filled.PauseCircleFilled else Icons.Filled.PlayCircleFilled,
-                                contentDescription = if (playerState.isPlaying) "Pause" else "Play",
-                                tint = if (playerState.isPlaying) SatisfyRed else Color.White,
-                                modifier = Modifier.size(24.dp)
+                                contentDescription = if (playerState.isPlaying) "Pause video" else "Play video",
+                                tint = if (playerState.isPlaying) MaterialTheme.colorScheme.primary else Color.White,
+                                modifier = Modifier.size(26.dp)
                             )
                         }
 
-                        // Expand / Return to Full Video Button
+                        // 2. Full Screen / Expand Control
                         IconButton(
                             onClick = onExpand,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier
+                                .size(32.dp)
+                                .testTag("mini_player_fullscreen")
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Fullscreen,
-                                contentDescription = "Expand to Fullscreen",
-                                tint = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.size(20.dp)
+                                contentDescription = "Full Screen / Expand video",
+                                tint = Color.White.copy(alpha = 0.95f),
+                                modifier = Modifier.size(22.dp)
                             )
                         }
 
-                        // Close Button
+                        // 3. Close Control
                         IconButton(
                             onClick = onClose,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier
+                                .size(30.dp)
+                                .testTag("mini_player_close")
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Close,
-                                contentDescription = "Close Mini Player",
-                                tint = Color.White.copy(alpha = 0.7f),
+                                contentDescription = "Close video player",
+                                tint = Color.White.copy(alpha = 0.75f),
                                 modifier = Modifier.size(18.dp)
                             )
                         }

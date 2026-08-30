@@ -4,6 +4,7 @@ import com.example.data.local.CommentDao
 import com.example.data.local.CreatorPageDao
 import com.example.data.local.MonetizationDao
 import com.example.data.local.PostDao
+import com.example.data.local.RecentSearchDao
 import com.example.data.local.SavedAccountDao
 import com.example.data.local.UserInteractionDao
 import com.example.data.local.WatchHistoryDao
@@ -17,7 +18,8 @@ class SatisfyRepository(
     private val creatorPageDao: CreatorPageDao,
     private val monetizationDao: MonetizationDao,
     private val savedAccountDao: SavedAccountDao,
-    private val userInteractionDao: UserInteractionDao
+    private val userInteractionDao: UserInteractionDao,
+    private val recentSearchDao: RecentSearchDao? = null
 ) {
     val allPosts: Flow<List<PostEntity>> = postDao.getAllPosts()
     val pendingVerificationPosts: Flow<List<PostEntity>> = postDao.getPendingVerificationPosts()
@@ -31,6 +33,22 @@ class SatisfyRepository(
     val watchHistory: Flow<List<PostEntity>> = historyDao.getWatchHistory()
     val creatorPages: Flow<List<CreatorPageEntity>> = creatorPageDao.getAllPages()
     val monetizationApplications: Flow<List<MonetizationApplicationEntity>> = monetizationDao.getAllApplications()
+    val recentSearches: Flow<List<RecentSearchEntity>> = recentSearchDao?.getRecentSearches() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+
+    suspend fun addRecentSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isNotBlank()) {
+            recentSearchDao?.insertRecentSearch(RecentSearchEntity(query = trimmed, timestamp = System.currentTimeMillis()))
+        }
+    }
+
+    suspend fun removeRecentSearch(query: String) {
+        recentSearchDao?.deleteRecentSearch(query.trim())
+    }
+
+    suspend fun clearRecentSearches() {
+        recentSearchDao?.clearAllRecentSearches()
+    }
 
     // Multi-Account & Saved Profiles
     val allSavedAccounts: Flow<List<SavedAccountEntity>> = savedAccountDao.getAllAccounts()
@@ -325,24 +343,83 @@ class SatisfyRepository(
             e.printStackTrace()
         }
 
-        // Initialize clean user account if no account exists
-        if (savedAccountDao.getAccountsCount() == 0) {
-            val defaultAccount = SavedAccountEntity(
-                uid = "user_me",
-                name = "Satisfy Creator",
-                handle = "@satisfy_creator",
-                email = "creator@satisfy.app",
-                bio = "Welcome to my Satisfy channel! ✨",
-                avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
-                bannerUrl = "",
-                link = "satisfy.app/@satisfy_creator",
-                subscriberCount = "0 subscribers",
-                isPro = false,
-                referralCode = "SATISFY100",
-                lastActiveTimestamp = System.currentTimeMillis(),
-                isActive = true
+        // Initialize realistic logged-in accounts if less than 2 accounts exist
+        if (savedAccountDao.getAccountsCount() < 2) {
+            val defaultAccounts = listOf(
+                SavedAccountEntity(
+                    uid = "user_creator",
+                    name = "Satisfy Creator",
+                    handle = "@satisfy_creator",
+                    email = "creator@satisfy.app",
+                    bio = "Welcome to my Satisfy channel! Sharing satisfying video creations, 4K nature cinematography, and community photography. ✨",
+                    avatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+                    bannerUrl = "",
+                    link = "satisfy.app/@satisfy_creator",
+                    subscriberCount = "1.2K subscribers",
+                    isPro = true,
+                    activePlanId = "plan_pro_12",
+                    activePlanName = "Satisfy PRO Annual",
+                    activePlanTier = "ANNUAL",
+                    subscriptionStatus = "ACTIVE",
+                    proStartedAt = System.currentTimeMillis() - 86400000L * 30,
+                    proExpiresAt = System.currentTimeMillis() + 86400000L * 335,
+                    referralCode = "SATISFY100",
+                    lastActiveTimestamp = System.currentTimeMillis(),
+                    isActive = true
+                ),
+                SavedAccountEntity(
+                    uid = "user_aura",
+                    name = "Aura Aesthetics",
+                    handle = "@aura_aesthetics",
+                    email = "aura@satisfy.app",
+                    bio = "Mindful soundscapes, kinetic sand, and soothing visual harmony 🌿",
+                    avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
+                    bannerUrl = "https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?w=800",
+                    link = "satisfy.app/@aura_aesthetics",
+                    subscriberCount = "8.4K subscribers",
+                    isPro = true,
+                    activePlanId = "plan_pro_5",
+                    activePlanName = "Satisfy PRO Monthly",
+                    activePlanTier = "MONTHLY",
+                    subscriptionStatus = "ACTIVE",
+                    proStartedAt = System.currentTimeMillis() - 86400000L * 10,
+                    proExpiresAt = System.currentTimeMillis() + 86400000L * 20,
+                    referralCode = "AURA777",
+                    lastActiveTimestamp = System.currentTimeMillis() - 3600000L * 2,
+                    isActive = false
+                ),
+                SavedAccountEntity(
+                    uid = "user_apex",
+                    name = "Apex Gaming Hub",
+                    handle = "@apexgaming",
+                    email = "apex@satisfy.app",
+                    bio = "Satisfying 120FPS physics simulations, clean speedruns & ultra-smooth gaming edits 🎮",
+                    avatarUrl = "https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=200",
+                    bannerUrl = "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800",
+                    link = "satisfy.app/@apexgaming",
+                    subscriberCount = "15.2K subscribers",
+                    isPro = false,
+                    referralCode = "APEX99",
+                    lastActiveTimestamp = System.currentTimeMillis() - 3600000L * 5,
+                    isActive = false
+                ),
+                SavedAccountEntity(
+                    uid = "user_maya",
+                    name = "Dr. Maya Lin",
+                    handle = "@mayalin",
+                    email = "maya.lin@satisfy.app",
+                    bio = "Microscopic wonders, ferrofluid art & satisfying fluid chemistry experiments 🔬",
+                    avatarUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200",
+                    bannerUrl = "https://images.unsplash.com/photo-1507668077129-56e32842fceb?w=800",
+                    link = "satisfy.app/@mayalin",
+                    subscriberCount = "3.1K subscribers",
+                    isPro = false,
+                    referralCode = "MAYA50",
+                    lastActiveTimestamp = System.currentTimeMillis() - 86400000L,
+                    isActive = false
+                )
             )
-            savedAccountDao.insertAccount(defaultAccount)
+            savedAccountDao.insertAll(defaultAccounts)
         }
     }
 }
