@@ -1027,10 +1027,12 @@ fun AdminOwnerChatsTabContent(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                                 )
                             }
-                            Text(
-                                text = "${msg.senderName} • ${dateFormat.format(Date(msg.timestamp))}",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Spacer(modifier = Modifier.height(2.dp))
+                            com.example.ui.components.MessageReceiptIndicator(
+                                isFromMe = isFromAdmin,
+                                isDelivered = msg.isDelivered,
+                                isRead = msg.isRead,
+                                timestamp = msg.timestamp
                             )
                         }
                     }

@@ -748,8 +748,8 @@ class ProRepository(
             )
         )
 
-        // Insert Message
-        chatMessageDao.insertMessage(
+        // Insert Message with delivery confirmation
+        val msgId = chatMessageDao.insertMessage(
             ChatMessageEntity(
                 chatUserId = userId,
                 senderId = userId,
@@ -757,7 +757,10 @@ class ProRepository(
                 senderRole = "USER",
                 message = message,
                 timestamp = now,
-                isRead = false
+                isDelivered = true,
+                isRead = false,
+                deliveredTimestamp = now,
+                readTimestamp = 0L
             )
         )
     }
@@ -773,8 +776,11 @@ class ProRepository(
         if (message.isBlank()) return@withContext
 
         val now = System.currentTimeMillis()
-        val existingChat = ownerChatDao.getChatByUserId(targetUserId)
+        // When admin replies, all previous user messages are naturally marked as read by admin
+        chatMessageDao.markMessagesAsRead(targetUserId, "ADMIN", now)
+        ownerChatDao.markAdminRead(targetUserId)
 
+        val existingChat = ownerChatDao.getChatByUserId(targetUserId)
         val unreadUser = (existingChat?.unreadCountForUser ?: 0) + 1
         ownerChatDao.insertOrUpdateChat(
             OwnerChatEntity(
@@ -799,7 +805,10 @@ class ProRepository(
                 senderRole = "OWNER",
                 message = message,
                 timestamp = now,
-                isRead = false
+                isDelivered = true,
+                isRead = false,
+                deliveredTimestamp = now,
+                readTimestamp = 0L
             )
         )
     }
@@ -808,7 +817,9 @@ class ProRepository(
      * Mark Chat Messages as Read
      */
     suspend fun markChatAsRead(chatUserId: String, readerRole: String) = withContext(Dispatchers.IO) {
-        chatMessageDao.markMessagesAsRead(chatUserId, readerRole)
+        val now = System.currentTimeMillis()
+        chatMessageDao.markMessagesAsDelivered(chatUserId, now)
+        chatMessageDao.markMessagesAsRead(chatUserId, readerRole, now)
         if (readerRole == "ADMIN" || readerRole == "OWNER") {
             ownerChatDao.markAdminRead(chatUserId)
         } else {

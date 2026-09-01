@@ -37,11 +37,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.data.model.ContinueWatchingItem
 import com.example.data.model.PostEntity
 import com.example.data.model.PostType
 import com.example.data.model.CreatorSearchResult
 import com.example.data.model.HashtagSearchResult
+import com.example.data.service.SatisfyRecommendationEngine
 import com.example.data.service.SatisfyVideoEngine
+import com.example.ui.components.ContinueWatchingShelf
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -51,6 +54,7 @@ import kotlinx.coroutines.launch
 fun HomeScreen(
     posts: List<PostEntity>,
     shortPosts: List<PostEntity>,
+    continueWatchingItems: List<ContinueWatchingItem> = emptyList(),
     selectedCategory: String,
     categories: List<String>,
     onSelectCategory: (String) -> Unit,
@@ -59,6 +63,7 @@ fun HomeScreen(
     onToggleLike: (PostEntity) -> Unit,
     onToggleSave: (PostEntity) -> Unit,
     onDeletePost: (PostEntity) -> Unit,
+    onRemoveContinueWatching: (Long) -> Unit = {},
     onCreatorClick: (String, String, Long?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
@@ -149,14 +154,17 @@ fun HomeScreen(
     }
 
     val filteredFeedPosts = remember(posts, selectedCategory) {
-        if (selectedCategory == "All") {
-            posts.filter { it.type == PostType.VIDEO }
+        val baseList = if (selectedCategory == "All") {
+            posts.filter { it.type == PostType.VIDEO && it.status != "REJECTED" }
         } else {
             posts.filter {
                 it.type == PostType.VIDEO &&
+                it.status != "REJECTED" &&
                 (it.category.equals(selectedCategory, ignoreCase = true) || it.tags.contains(selectedCategory, ignoreCase = true))
             }
         }
+        // AI-Powered Algorithm ranking based on watch time, retention, engagement, quality score & spam limiter
+        SatisfyRecommendationEngine.rankPosts(baseList)
     }
 
     Column(
@@ -738,6 +746,17 @@ fun HomeScreen(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        // Continue Watching Shelf (Auto-saved video progress)
+                        if (continueWatchingItems.isNotEmpty()) {
+                            item(key = "continue_watching_shelf_item") {
+                                ContinueWatchingShelf(
+                                    items = continueWatchingItems,
+                                    onVideoClick = onVideoClick,
+                                    onRemoveItem = onRemoveContinueWatching
+                                )
+                            }
+                        }
+
                         // First 2 videos
                         val topVideos = visiblePagedVideos.take(2)
                         items(topVideos, key = { it.id }) { post ->

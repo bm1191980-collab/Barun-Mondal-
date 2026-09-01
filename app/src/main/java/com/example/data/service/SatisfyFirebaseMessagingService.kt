@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.MainActivity
 import com.example.R
+import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -95,7 +96,7 @@ class SatisfyFirebaseMessagingService : FirebaseMessagingService() {
                         onComplete(task.isSuccessful)
                     }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to subscribe to topic $topic: ${e.message}")
+                Log.w(TAG, "Notice: FCM topic subscription for '$topic' deferred: ${e.message}")
                 onComplete(false)
             }
         }

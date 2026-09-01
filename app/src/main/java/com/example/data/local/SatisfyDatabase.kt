@@ -33,7 +33,7 @@ import com.example.data.model.*
         RecentSearchEntity::class,
         NotificationEntity::class
     ],
-    version = 9,
+    version = 11,
     exportSchema = false
 )
 abstract class SatisfyDatabase : RoomDatabase() {

@@ -9,10 +9,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -114,23 +117,37 @@ class MainActivity : ComponentActivity() {
             val notificationPreferences by viewModel.notificationPreferences.collectAsStateWithLifecycle()
             val inAppToast by viewModel.inAppNotificationToast.collectAsStateWithLifecycle()
 
+            // Real-Time User Presence & Privacy state flows
+            val userPresence by viewModel.userPresence.collectAsStateWithLifecycle()
+            val showStatusAndPrivacyDialogFromVm by viewModel.showStatusAndPrivacyDialog.collectAsStateWithLifecycle()
+
+            // Continue Watching & Resume Progress
+            val continueWatchingItems by viewModel.continueWatchingItems.collectAsStateWithLifecycle()
+            val resumeNotice by viewModel.resumeNotice.collectAsStateWithLifecycle()
+
             var showCommentSheetForPost by remember { mutableStateOf<PostEntity?>(null) }
             var showAdminAuthDialog by remember { mutableStateOf(false) }
             var showCreatePageDialog by remember { mutableStateOf(false) }
             var showSettingsDialog by remember { mutableStateOf(false) }
             var showSwitchProfileDialog by remember { mutableStateOf(false) }
             var showAddAccountDialog by remember { mutableStateOf(false) }
+            var showStatusAndPrivacySheet by remember { mutableStateOf(false) }
 
             // Handle back navigation
-            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.NOTIFICATIONS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES || currentTab == ScreenTab.PUBLIC_CREATOR_PROFILE || showCommentSheetForPost != null || showSwitchProfileDialog || showAddAccountDialog) {
-                if (showAddAccountDialog) {
+            BackHandler(enabled = playerState.isExpanded || currentTab == ScreenTab.SEARCH || currentTab == ScreenTab.NOTIFICATIONS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES || currentTab == ScreenTab.PUBLIC_CREATOR_PROFILE || showCommentSheetForPost != null || showSwitchProfileDialog || showAddAccountDialog || showStatusAndPrivacySheet || showStatusAndPrivacyDialogFromVm) {
+                if (showStatusAndPrivacySheet || showStatusAndPrivacyDialogFromVm) {
+                    showStatusAndPrivacySheet = false
+                    viewModel.closeStatusAndPrivacyDialog()
+                } else if (showAddAccountDialog) {
                     showAddAccountDialog = false
                 } else if (showSwitchProfileDialog) {
                     showSwitchProfileDialog = false
                 } else if (showCommentSheetForPost != null) {
                     showCommentSheetForPost = null
+                } else if (playerState.isFullscreen) {
+                    viewModel.toggleFullscreen()
                 } else if (playerState.isExpanded) {
-                    viewModel.minimizePlayer()
+                    viewModel.closePlayer()
                 } else if (currentTab == ScreenTab.PUBLIC_CREATOR_PROFILE) {
                     viewModel.currentTab.value = viewModel.previousScreenTab
                 } else if (currentTab == ScreenTab.PAGE_DETAILS || currentTab == ScreenTab.ADMIN || currentTab == ScreenTab.PRO_MEMBERSHIP || currentTab == ScreenTab.WALLET || currentTab == ScreenTab.OWNER_CHAT || currentTab == ScreenTab.CREATOR_ANALYTICS || currentTab == ScreenTab.MONETIZATION || currentTab == ScreenTab.SATISFY_RULES) {
@@ -212,6 +229,7 @@ class MainActivity : ComponentActivity() {
                                     HomeScreen(
                                         posts = allPosts,
                                         shortPosts = shortPosts,
+                                        continueWatchingItems = continueWatchingItems,
                                         selectedCategory = selectedCategory,
                                         categories = viewModel.categories,
                                         onSelectCategory = { viewModel.selectedCategory.value = it },
@@ -222,6 +240,7 @@ class MainActivity : ComponentActivity() {
                                         onToggleLike = { post -> viewModel.toggleLike(post) },
                                         onToggleSave = { post -> viewModel.toggleSave(post) },
                                         onDeletePost = { post -> viewModel.deletePost(post) },
+                                        onRemoveContinueWatching = { postId -> viewModel.removeContinueWatching(postId) },
                                         onCreatorClick = { channelName, creatorUid, pageId ->
                                             viewModel.openPublicCreatorProfile(channelName, creatorUid, pageId)
                                         }
@@ -329,7 +348,11 @@ class MainActivity : ComponentActivity() {
                                         onClearHistory = { viewModel.clearWatchHistory() },
                                         onUploadClick = { viewModel.currentTab.value = ScreenTab.CREATE },
                                         onOpenAdminConsole = { viewModel.currentTab.value = ScreenTab.ADMIN },
-                                        onRequestAdminLogin = { showAdminAuthDialog = true }
+                                        onRequestAdminLogin = { showAdminAuthDialog = true },
+                                        onUpdateOnlineStatus = { isOnline -> viewModel.updateOnlineStatus(isOnline) },
+                                        onUpdateShowLastSeen = { show -> viewModel.updateShowLastSeen(show) },
+                                        onUpdatePrivacySetting = { setting -> viewModel.updatePresencePrivacy(setting) },
+                                        onUpdateCustomStatus = { msg -> viewModel.updateCustomStatusMessage(msg) }
                                     )
                                 }
                                 ScreenTab.PRO_MEMBERSHIP -> {
@@ -639,18 +662,17 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Floating Picture-in-Picture (PiP) Mini Player (Draggable to any corner)
-                    AnimatedVisibility(
-                        visible = playerState.isMiniPlayerVisible && !playerState.isExpanded && playerState.activePost != null,
-                        enter = fadeIn() + scaleIn(initialScale = 0.85f),
-                        exit = fadeOut() + scaleOut(targetScale = 0.85f)
-                    ) {
+                    // In-App Floating Mini Player (Resumes from identical timestamp when minimized)
+                    if (!playerState.isExpanded && playerState.isMiniPlayerVisible && playerState.activePost != null) {
                         FloatingMiniPlayer(
                             playerState = playerState,
                             onExpand = { viewModel.expandPlayer() },
                             onTogglePlayPause = { viewModel.togglePlayPause() },
                             onClose = { viewModel.closePlayer() },
-                            exoPlayer = viewModel.getOrCreateExoPlayer()
+                            exoPlayer = viewModel.getOrCreateExoPlayer(),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 12.dp, bottom = 80.dp)
                         )
                     }
 
@@ -694,7 +716,23 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onOpenSwitchProfile = { showSwitchProfileDialog = true },
+                            onOpenStatusAndPrivacy = { showStatusAndPrivacySheet = true },
                             isAdmin = isAdminAuthenticated
+                        )
+                    }
+
+                    // Status and Presence Privacy Bottom Sheet Modal
+                    if (showStatusAndPrivacySheet || showStatusAndPrivacyDialogFromVm) {
+                        StatusAndPrivacyBottomSheet(
+                            userProfile = userProfile,
+                            onDismiss = {
+                                showStatusAndPrivacySheet = false
+                                viewModel.closeStatusAndPrivacyDialog()
+                            },
+                            onUpdateOnlineStatus = { isOnline -> viewModel.updateOnlineStatus(isOnline) },
+                            onUpdateShowLastSeen = { show -> viewModel.updateShowLastSeen(show) },
+                            onUpdatePrivacySetting = { setting -> viewModel.updatePresencePrivacy(setting) },
+                            onUpdateCustomStatus = { msg -> viewModel.updateCustomStatusMessage(msg) }
                         )
                     }
 
@@ -791,6 +829,40 @@ class MainActivity : ComponentActivity() {
                                     color = Color.White,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // Continue Watching Resume Floating Notice
+                    if (resumeNotice != null) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF0F172A).copy(alpha = 0.95f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            tonalElevation = 10.dp,
+                            shadowElevation = 12.dp,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .navigationBarsPadding()
+                                .padding(bottom = 72.dp, start = 20.dp, end = 20.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.History,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = resumeNotice ?: "",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }

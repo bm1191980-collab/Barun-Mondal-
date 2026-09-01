@@ -68,14 +68,23 @@ fun OwnerChatScreen(
                 },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Brush.radialGradient(listOf(SatisfyGold, Color(0xFFD97706)))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                        Box(modifier = Modifier.size(40.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Brush.radialGradient(listOf(SatisfyGold, Color(0xFFD97706)))),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Filled.VerifiedUser, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                            }
+                            com.example.ui.components.PresenceIndicator(
+                                isOnline = true,
+                                size = 12.dp,
+                                showBorder = true,
+                                borderColor = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.align(Alignment.BottomEnd)
+                            )
                         }
 
                         Spacer(modifier = Modifier.width(10.dp))
@@ -315,24 +324,12 @@ fun OwnerChatScreen(
 
                                 Spacer(modifier = Modifier.height(2.dp))
 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = dateFormat.format(Date(msg.timestamp)),
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    if (isFromMe) {
-                                        Icon(
-                                            imageVector = if (msg.isRead) Icons.Filled.DoneAll else Icons.Filled.Done,
-                                            contentDescription = null,
-                                            tint = if (msg.isRead) Color(0xFF60A5FA) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                    }
-                                }
+                                com.example.ui.components.MessageReceiptIndicator(
+                                    isFromMe = isFromMe,
+                                    isDelivered = msg.isDelivered,
+                                    isRead = msg.isRead,
+                                    timestamp = msg.timestamp
+                                )
                             }
                         }
                     }

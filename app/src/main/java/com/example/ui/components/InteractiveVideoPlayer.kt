@@ -45,6 +45,7 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.example.data.model.PostEntity
@@ -436,6 +437,7 @@ fun InteractiveVideoPlayer(
                     PlayerView(ctx).apply {
                         player = activeExoPlayer
                         useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
@@ -444,6 +446,7 @@ fun InteractiveVideoPlayer(
                 },
                 update = { playerView ->
                     playerView.player = activeExoPlayer
+                    playerView.resizeMode = if (zoomScale > 1.05f) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
                     playerView.keepScreenOn = isActivelyPlaying
                 },
                 modifier = Modifier.fillMaxSize()
@@ -927,15 +930,15 @@ fun InteractiveVideoPlayer(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
-                            onClick = onMinimize,
+                            onClick = onClose,
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = 0.6f))
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.KeyboardArrowDown,
-                                contentDescription = "Minimize Player",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Close Video",
                                 tint = Color.White
                             )
                         }

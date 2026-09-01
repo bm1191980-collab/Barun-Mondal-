@@ -237,7 +237,10 @@ data class ChatMessageEntity(
     val senderRole: String, // "USER" or "OWNER"
     val message: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val isRead: Boolean = false
+    val isDelivered: Boolean = true,
+    val isRead: Boolean = false,
+    val deliveredTimestamp: Long = System.currentTimeMillis(),
+    val readTimestamp: Long = 0L
 )
 
 data class ProAnalyticsSummary(

@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.PostEntity
 import com.example.data.model.PostType
+import com.example.ui.components.PresenceIndicator
+import com.example.ui.components.PresenceStatusPill
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PublicCreatorProfile
 
@@ -220,34 +222,49 @@ fun PublicCreatorProfileScreen(
                         verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Avatar with border
-                        Box(
-                            modifier = Modifier
-                                .size(84.dp)
-                                .clip(CircleShape)
-                                .border(3.dp, MaterialTheme.colorScheme.background, CircleShape)
-                                .background(SatisfyDarkSurfaceVariant)
-                                .testTag("creator_profile_avatar")
-                        ) {
-                            if (profile.avatarUrl.isNotBlank()) {
-                                AsyncImage(
-                                    model = profile.avatarUrl,
-                                    contentDescription = profile.channelName,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = profile.channelName.take(1),
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = SatisfyRed
+                        // Avatar with border & live presence indicator
+                        Box(modifier = Modifier.size(88.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(84.dp)
+                                    .clip(CircleShape)
+                                    .border(3.dp, MaterialTheme.colorScheme.background, CircleShape)
+                                    .background(SatisfyDarkSurfaceVariant)
+                                    .testTag("creator_profile_avatar")
+                            ) {
+                                if (profile.avatarUrl.isNotBlank()) {
+                                    AsyncImage(
+                                        model = profile.avatarUrl,
+                                        contentDescription = profile.channelName,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
                                     )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = profile.channelName.take(1),
+                                            fontSize = 32.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SatisfyRed
+                                        )
+                                    }
                                 }
+                            }
+
+                            // Live Presence Indicator Dot
+                            if (profile.showOnlineBadge) {
+                                PresenceIndicator(
+                                    isOnline = profile.isOnline,
+                                    size = 18.dp,
+                                    showBorder = true,
+                                    borderColor = MaterialTheme.colorScheme.surface,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .offset(x = (-2).dp, y = (-2).dp)
+                                )
                             }
                         }
 
@@ -348,6 +365,16 @@ fun PublicCreatorProfileScreen(
                             text = profile.handle,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Creator Real-time Presence Status Pill
+                        PresenceStatusPill(
+                            isOnline = profile.isOnline,
+                            statusText = profile.statusText,
+                            customMoodOrActivity = profile.customStatus,
+                            isSelf = profile.isOwnProfile
                         )
 
                         Spacer(modifier = Modifier.height(14.dp))

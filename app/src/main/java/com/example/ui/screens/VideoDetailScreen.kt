@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -67,40 +69,43 @@ fun VideoDetailScreen(
 ) {
     val post = playerState.activePost ?: return
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isEffectivelyFullscreen = playerState.isFullscreen || isLandscape
     var isDescriptionExpanded by remember { mutableStateOf(false) }
 
     val nextVideo = remember(post.id, relatedVideos) {
         relatedVideos.firstOrNull { it.id != post.id } ?: relatedVideos.firstOrNull()
     }
 
-    // Intercept back button: if in fullscreen, exit fullscreen; otherwise minimize to Floating Mini Player
+    // Intercept back button: if in fullscreen, exit fullscreen; otherwise close player directly inside screen (no PiP)
     BackHandler(enabled = true) {
         if (playerState.isFullscreen) {
             onToggleFullscreen()
         } else {
-            onMinimize()
+            onClose()
         }
     }
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(if (playerState.isFullscreen) Color.Black else MaterialTheme.colorScheme.background)
+            .background(if (isEffectivelyFullscreen) Color.Black else MaterialTheme.colorScheme.background)
     ) {
-        val isWideScreen = maxWidth >= 720.dp && !playerState.isFullscreen
+        val isTabletWideScreen = maxWidth >= 720.dp && !isEffectivelyFullscreen
 
-        if (playerState.isFullscreen) {
-            // Fullscreen Video Player
+        if (isEffectivelyFullscreen) {
+            // Fullscreen & Landscape Video Player - Expands to 100% full screen
             InteractiveVideoPlayer(
-                playerState = playerState,
+                playerState = playerState.copy(isFullscreen = true),
                 onTogglePlayPause = onTogglePlayPause,
                 onSeek = onSeek,
                 onSeekRelative = onSeekRelative,
                 onToggleMute = onToggleMute,
                 onSpeedChange = onSpeedChange,
                 onQualityChange = onQualityChange,
-                onMinimize = onMinimize,
-                onClose = onClose,
+                onMinimize = onClose,
+                onClose = if (playerState.isFullscreen) onToggleFullscreen else onClose,
                 onToggleControls = onToggleControls,
                 onToggleFullscreen = onToggleFullscreen,
                 nextVideo = nextVideo,
@@ -109,7 +114,7 @@ fun VideoDetailScreen(
                 exoPlayer = exoPlayer,
                 modifier = Modifier.fillMaxSize()
             )
-        } else if (isWideScreen) {
+        } else if (isTabletWideScreen) {
             // Adaptive 2-Pane Layout for Tablets / Foldables / Landscape
             Row(
                 modifier = Modifier

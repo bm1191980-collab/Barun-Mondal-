@@ -61,7 +61,12 @@ fun ShortsScreen(
     onCreatorClick: (channelName: String, creatorUid: String, pageId: Long?) -> Unit = { _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
-    if (shorts.isEmpty()) {
+    val rankedShorts = remember(shorts) {
+        val nonRejected = shorts.filter { it.status != "REJECTED" }
+        com.example.data.service.SatisfyRecommendationEngine.rankPosts(nonRejected)
+    }
+
+    if (rankedShorts.isEmpty()) {
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -105,7 +110,7 @@ fun ShortsScreen(
         return
     }
 
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { shorts.size })
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { rankedShorts.size })
     val coroutineScope = rememberCoroutineScope()
 
     Box(
@@ -119,9 +124,9 @@ fun ShortsScreen(
             modifier = Modifier.fillMaxSize(),
             beyondViewportPageCount = 0
         ) { page ->
-            val short = shorts[page]
+            val short = rankedShorts[page]
             val isCurrentPage = page == pagerState.currentPage
-            val nextShort = if (page < shorts.lastIndex) shorts[page + 1] else null
+            val nextShort = if (page < rankedShorts.lastIndex) rankedShorts[page + 1] else null
 
             ShortPageItem(
                 short = short,

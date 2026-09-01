@@ -63,7 +63,13 @@ data class PostEntity(
     val isPremium: Boolean = false,
     val approvedAt: Long? = null,
     val rejectedAt: Long? = null,
-    val qualities: String = "Auto,1080p,720p,480p,360p"
+    val qualities: String = "Auto,1080p,720p,480p,360p",
+    val aiQualityScore: Int = 92,
+    val aiModerationReason: String? = null,
+    val aiModerationRiskScore: Float = 0.0f,
+    val isSpamLimited: Boolean = false,
+    val sharesCount: Long = 0L,
+    val avgRetentionRate: Float = 0.72f
 )
 
 @Entity(tableName = "creator_pages")
@@ -178,7 +184,14 @@ data class UserProfile(
     val proExpiresAt: Long? = null,
     val proStartedAt: Long? = null,
     val referralCode: String = "SATISFY100",
-    val referredByCode: String? = null
+    val referredByCode: String? = null,
+    // Real-time Online / Offline / Last Seen & Privacy Settings
+    val isOnline: Boolean = true,
+    val lastSeenTimestamp: Long = System.currentTimeMillis(),
+    val showOnlineStatus: Boolean = true,
+    val showLastSeen: Boolean = true,
+    val presencePrivacy: PresencePrivacySetting = PresencePrivacySetting.EVERYONE,
+    val customStatusMessage: String = "Active on Satisfy ✨"
 )
 
 @Entity(tableName = "monetization_applications")
@@ -342,4 +355,15 @@ data class SearchSuggestion(
     val postEntity: PostEntity? = null,
     val creatorResult: CreatorSearchResult? = null
 )
+
+data class ContinueWatchingItem(
+    val post: PostEntity,
+    val history: WatchHistoryEntity,
+    val progressPercent: Float = 0f,
+    val lastPositionSeconds: Long = 0L,
+    val durationSeconds: Long = 0L,
+    val formattedPosition: String = "00:00",
+    val formattedRemaining: String = "00:00"
+)
+
 

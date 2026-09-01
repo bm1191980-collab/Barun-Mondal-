@@ -414,16 +414,28 @@ class AdminRepository(
         logAuditAction("Delete User", _currentAdmin.value?.email ?: "admin", "Permanently removed ${user.name} (${user.email})")
     }
 
-    // --- POST MANAGEMENT ---
+    // --- POST & AI MODERATION MANAGEMENT ---
+    suspend fun resolveAiFlag(postId: Long, adminEmail: String, notes: String = "") {
+        val safeNotes = notes.ifBlank { "AI Flag dismissed. Content verified safe and recommendation reach restored." }
+        postDao.resolveAiFlag(postId, safeNotes)
+        logAuditAction("AI Flag Resolved", adminEmail.ifBlank { _currentAdmin.value?.email ?: "admin" }, "Dismissed AI Flag for Post ID: $postId ($safeNotes)")
+    }
+
+    suspend fun setSpamReachLimitation(postId: Long, adminEmail: String, isLimited: Boolean) {
+        postDao.updateSpamLimited(postId, isLimited)
+        val action = if (isLimited) "Spam Reach Throttled" else "Spam Reach Restored"
+        logAuditAction(action, adminEmail.ifBlank { _currentAdmin.value?.email ?: "admin" }, "Updated spam reach limitation for Post ID: $postId (isLimited: $isLimited)")
+    }
+
     suspend fun approveVideo(postId: Long, adminEmail: String, notes: String = "") {
-        postDao.approvePost(postId)
-        logAuditAction("Video Approved", adminEmail.ifBlank { _currentAdmin.value?.email ?: "admin" }, "Approved video verification (Post ID: $postId). Notes: ${notes.ifBlank { "Meets Community Standards" }}")
+        postDao.resolveAiFlag(postId, notes.ifBlank { "Verified Safe by Admin" })
+        logAuditAction("Video Flag Cleared", adminEmail.ifBlank { _currentAdmin.value?.email ?: "admin" }, "Cleared flag / restored full reach (Post ID: $postId). Notes: ${notes.ifBlank { "Meets Community Standards" }}")
     }
 
     suspend fun rejectVideo(postId: Long, adminEmail: String, reason: String) {
-        val safeReason = reason.ifBlank { "Violation of Content Quality Guidelines" }
+        val safeReason = reason.ifBlank { "Violation of Content Safety & Community Guidelines" }
         postDao.rejectPost(postId, safeReason)
-        logAuditAction("Video Rejected", adminEmail.ifBlank { _currentAdmin.value?.email ?: "admin" }, "Rejected video verification (Post ID: $postId). Reason: $safeReason")
+        logAuditAction("Content Removed", adminEmail.ifBlank { _currentAdmin.value?.email ?: "admin" }, "Moderated post (Post ID: $postId). Reason: $safeReason")
     }
 
     suspend fun deletePost(post: PostEntity) {

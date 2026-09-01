@@ -18,7 +18,7 @@ interface PostDao {
     @Query("UPDATE posts SET mediaUrl = :mediaUrl WHERE id = :postId")
     suspend fun updateMediaUrl(postId: Long, mediaUrl: String)
 
-    @Query("SELECT * FROM posts WHERE status = 'APPROVED' AND type = :type ORDER BY id DESC")
+    @Query("SELECT * FROM posts WHERE (status = 'APPROVED' OR status = 'PUBLISHED' OR isUserCreated = 1) AND type = :type ORDER BY id DESC")
     fun getApprovedPostsByType(type: PostType): Flow<List<PostEntity>>
 
     @Query("SELECT * FROM posts WHERE type = :type ORDER BY id DESC")
@@ -36,10 +36,10 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE isLiked = 1 ORDER BY id DESC")
     fun getLikedPosts(): Flow<List<PostEntity>>
 
-    @Query("SELECT * FROM posts WHERE status = 'APPROVED' AND (title LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%' OR tags LIKE '%' || :query || '%' OR channelName LIKE '%' || :query || '%') ORDER BY id DESC")
+    @Query("SELECT * FROM posts WHERE (status = 'APPROVED' OR status = 'PUBLISHED' OR isUserCreated = 1) AND (title LIKE '%' || :query || '%' OR description LIKE '%' || :query || '%' OR tags LIKE '%' || :query || '%' OR channelName LIKE '%' || :query || '%') ORDER BY id DESC")
     fun searchPosts(query: String): Flow<List<PostEntity>>
 
-    @Query("SELECT * FROM posts WHERE status = 'APPROVED' AND id != :currentPostId AND (category = :category OR tags LIKE '%' || :category || '%') ORDER BY viewCount DESC, id DESC LIMIT 15")
+    @Query("SELECT * FROM posts WHERE (status = 'APPROVED' OR status = 'PUBLISHED' OR isUserCreated = 1) AND id != :currentPostId AND (category = :category OR tags LIKE '%' || :category || '%') ORDER BY viewCount DESC, id DESC LIMIT 15")
     fun getRelatedPosts(currentPostId: Long, category: String): Flow<List<PostEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -90,11 +90,29 @@ interface PostDao {
     @Query("UPDATE posts SET isFlagged = :isFlagged WHERE id = :postId")
     suspend fun updateFlagged(postId: Long, isFlagged: Boolean)
 
+    @Query("UPDATE posts SET isSpamLimited = :isSpamLimited WHERE id = :postId")
+    suspend fun updateSpamLimited(postId: Long, isSpamLimited: Boolean)
+
+    @Query("UPDATE posts SET sharesCount = sharesCount + 1 WHERE id = :postId")
+    suspend fun incrementShares(postId: Long)
+
+    @Query("UPDATE posts SET avgRetentionRate = :retentionRate, watchTimeSeconds = watchTimeSeconds + :deltaSeconds WHERE id = :postId")
+    suspend fun updateRetentionAndWatchTime(postId: Long, retentionRate: Float, deltaSeconds: Long)
+
+    @Query("UPDATE posts SET isFlagged = 0, isSpamLimited = 0, aiModerationReason = :reason, isVerified = 1 WHERE id = :postId")
+    suspend fun resolveAiFlag(postId: Long, reason: String = "AI Flag Dismissed & Reach Restored by Admin")
+
+    @Query("UPDATE posts SET isFlagged = 1, aiModerationReason = :reason, aiModerationRiskScore = :riskScore WHERE id = :postId")
+    suspend fun flagPostByAi(postId: Long, reason: String, riskScore: Float)
+
     @Query("SELECT * FROM posts WHERE isFeatured = 1 ORDER BY id DESC")
     fun getFeaturedPosts(): Flow<List<PostEntity>>
 
     @Query("SELECT * FROM posts WHERE isFlagged = 1 ORDER BY id DESC")
     fun getFlaggedPosts(): Flow<List<PostEntity>>
+
+    @Query("SELECT * FROM posts WHERE isSpamLimited = 1 ORDER BY id DESC")
+    fun getSpamLimitedPosts(): Flow<List<PostEntity>>
 
     @Query("SELECT * FROM posts WHERE status = 'PENDING' ORDER BY id DESC")
     fun getPendingVerificationPosts(): Flow<List<PostEntity>>
@@ -102,7 +120,7 @@ interface PostDao {
     @Query("SELECT * FROM posts WHERE status = :status ORDER BY id DESC")
     fun getPostsByStatus(status: String): Flow<List<PostEntity>>
 
-    @Query("SELECT * FROM posts WHERE status = 'APPROVED' ORDER BY id DESC")
+    @Query("SELECT * FROM posts WHERE (status = 'APPROVED' OR status = 'PUBLISHED' OR isUserCreated = 1) AND status != 'REJECTED' ORDER BY id DESC")
     fun getApprovedPosts(): Flow<List<PostEntity>>
 
     @Query("UPDATE posts SET status = :status, isVerified = :isVerified, rejectionReason = :rejectionReason, approvedAt = :approvedAt, rejectedAt = :rejectedAt WHERE id = :postId")
@@ -165,8 +183,17 @@ interface WatchHistoryDao {
     @Query("SELECT * FROM watch_history WHERE postId = :postId ORDER BY watchedAt DESC LIMIT 1")
     suspend fun getWatchProgressForPost(postId: Long): WatchHistoryEntity?
 
+    @Query("SELECT * FROM watch_history WHERE userId = :userId ORDER BY watchedAt DESC")
+    fun getAllWatchHistoryForUser(userId: String): Flow<List<WatchHistoryEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun recordWatch(history: WatchHistoryEntity)
+
+    @Query("UPDATE watch_history SET lastPositionSeconds = :lastPos, durationSeconds = :duration, watchedAt = :watchedAt WHERE id = :id")
+    suspend fun updateWatchProgress(id: Long, lastPos: Long, duration: Long, watchedAt: Long)
+
+    @Query("DELETE FROM watch_history WHERE postId = :postId AND userId = :userId")
+    suspend fun deleteWatchProgressForPostAndUser(postId: Long, userId: String)
 
     @Query("DELETE FROM watch_history WHERE userId = :userId")
     suspend fun clearHistoryForUser(userId: String)
@@ -534,8 +561,17 @@ interface ChatMessageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: com.example.data.model.ChatMessageEntity): Long
 
-    @Query("UPDATE chat_messages SET isRead = 1 WHERE chatUserId = :chatUserId AND senderRole != :readerRole")
-    suspend fun markMessagesAsRead(chatUserId: String, readerRole: String)
+    @Query("UPDATE chat_messages SET isRead = 1, readTimestamp = :readAt WHERE chatUserId = :chatUserId AND senderRole != :readerRole AND isRead = 0")
+    suspend fun markMessagesAsRead(chatUserId: String, readerRole: String, readAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE chat_messages SET isDelivered = 1, deliveredTimestamp = :deliveredAt WHERE chatUserId = :chatUserId AND isDelivered = 0")
+    suspend fun markMessagesAsDelivered(chatUserId: String, deliveredAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE chat_messages SET isDelivered = 1, deliveredTimestamp = :deliveredAt WHERE id = :messageId")
+    suspend fun markSingleMessageDelivered(messageId: Long, deliveredAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE chat_messages SET isRead = 1, readTimestamp = :readAt WHERE id = :messageId")
+    suspend fun markSingleMessageRead(messageId: Long, readAt: Long = System.currentTimeMillis())
 }
 
 @Dao

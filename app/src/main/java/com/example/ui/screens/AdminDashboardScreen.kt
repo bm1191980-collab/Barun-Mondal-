@@ -41,7 +41,7 @@ enum class AdminTab {
     REFERRALS,
     WITHDRAWALS,
     OWNER_CHATS,
-    VERIFICATION,
+    AI_MODERATION,
     USERS,
     POSTS,
     REPORTS,
@@ -83,6 +83,8 @@ fun AdminDashboardScreen(
     onTogglePostPremium: (PostEntity) -> Unit = {},
     onApproveVideo: (PostEntity, String) -> Unit = { _, _ -> },
     onRejectVideo: (PostEntity, String) -> Unit = { _, _ -> },
+    onResolveAiFlag: (Long, String) -> Unit = { _, _ -> },
+    onSetSpamReachLimitation: (Long, Boolean) -> Unit = { _, _ -> },
     onResolveReport: (ReportEntity, String, Boolean, Boolean) -> Unit,
     onDismissReport: (Long) -> Unit,
     onSendPushBroadcast: (String, String, String, String, String) -> Unit,
@@ -101,7 +103,8 @@ fun AdminDashboardScreen(
 ) {
     var selectedTab by remember { mutableStateOf(AdminTab.ANALYTICS) }
     val pendingReportCount = remember(allReports) { allReports.count { it.status == "PENDING" } }
-    val pendingVideoCount = remember(allPosts) { allPosts.count { it.status == "PENDING" || (it.isUserCreated && !it.isVerified && it.status != "REJECTED" && it.status != "APPROVED") } }
+    val aiFlaggedCount = remember(allPosts) { allPosts.count { it.isFlagged } }
+    val spamLimitedCount = remember(allPosts) { allPosts.count { it.isSpamLimited } }
     val pendingWithdrawalCount = remember(withdrawals) { withdrawals.count { it.status == "PENDING" } }
     val unreadChatCount = remember(ownerChats) { ownerChats.sumOf { it.unreadCountForAdmin } }
     val pendingMonetizationCount = remember(monetizationApplications) { monetizationApplications.count { it.status == "PENDING" } }
@@ -238,12 +241,12 @@ fun AdminDashboardScreen(
                             onClick = { selectedTab = AdminTab.OWNER_CHATS }
                         )
                         TabItem(
-                            title = "Verification",
-                            icon = Icons.Filled.FactCheck,
-                            badgeCount = pendingVideoCount,
-                            isBadgeAlert = pendingVideoCount > 0,
-                            selected = selectedTab == AdminTab.VERIFICATION,
-                            onClick = { selectedTab = AdminTab.VERIFICATION }
+                            title = "AI Moderation",
+                            icon = Icons.Filled.AutoAwesome,
+                            badgeCount = aiFlaggedCount,
+                            isBadgeAlert = aiFlaggedCount > 0,
+                            selected = selectedTab == AdminTab.AI_MODERATION,
+                            onClick = { selectedTab = AdminTab.AI_MODERATION }
                         )
                         TabItem(
                             title = "Users",
@@ -333,10 +336,12 @@ fun AdminDashboardScreen(
                     onSendReply = onSendChatReply,
                     onToggleBlockUser = onToggleBlockChatUser
                 )
-                AdminTab.VERIFICATION -> AdminVerificationView(
+                AdminTab.AI_MODERATION -> AdminAiModerationView(
                     allPosts = allPosts,
                     onApproveVideo = onApproveVideo,
                     onRejectVideo = onRejectVideo,
+                    onResolveAiFlag = onResolveAiFlag,
+                    onSetSpamReachLimitation = onSetSpamReachLimitation,
                     onDeletePost = onDeletePost
                 )
                 AdminTab.USERS -> AdminUsersView(

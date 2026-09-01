@@ -37,7 +37,12 @@ import coil.compose.AsyncImage
 import com.example.data.model.CreatorPageEntity
 import com.example.data.model.PostEntity
 import com.example.data.model.PostType
+import com.example.data.model.PresencePrivacySetting
+import com.example.data.model.UserPresence
 import com.example.data.model.UserProfile
+import com.example.ui.components.PresenceIndicator
+import com.example.ui.components.PresenceStatusPill
+import com.example.ui.components.StatusAndPrivacyBottomSheet
 import com.example.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,12 +80,17 @@ fun ProfileScreen(
     onUploadClick: () -> Unit,
     onOpenAdminConsole: () -> Unit = {},
     onRequestAdminLogin: () -> Unit = {},
+    onUpdateOnlineStatus: (Boolean) -> Unit = {},
+    onUpdateShowLastSeen: (Boolean) -> Unit = {},
+    onUpdatePrivacySetting: (PresencePrivacySetting) -> Unit = {},
+    onUpdateCustomStatus: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedProfileTab by remember { mutableIntStateOf(0) }
     val profileTabs = listOf("My Uploads", "Liked", "Saved", "History")
 
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showStatusDialog by remember { mutableStateOf(false) }
     var showFullScreenAvatar by remember { mutableStateOf(false) }
     var snackbarMessage by remember { mutableStateOf<String?>(null) }
 
@@ -110,6 +120,8 @@ fun ProfileScreen(
     val totalLikes = remember(userUploadedPosts) {
         userUploadedPosts.sumOf { it.likeCount }
     }
+
+    val isEffectivelyOnline = userProfile.isOnline && userProfile.showOnlineStatus && userProfile.presencePrivacy != PresencePrivacySetting.NOBODY
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -326,6 +338,17 @@ fun ProfileScreen(
                                 )
                             }
 
+                            // Live Presence Indicator Dot
+                            PresenceIndicator(
+                                isOnline = isEffectivelyOnline,
+                                size = 18.dp,
+                                showBorder = true,
+                                borderColor = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .offset(x = 2.dp, y = (-2).dp)
+                            )
+
                             // Small Camera Icon Badge (ONLY this triggers picking a new avatar)
                             Surface(
                                 shape = CircleShape,
@@ -472,6 +495,26 @@ fun ProfileScreen(
                             modifier = Modifier.size(18.dp)
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Real-time Presence & Privacy Status Pill
+                    val selfPresenceStatus = when {
+                        userProfile.presencePrivacy == PresencePrivacySetting.NOBODY -> "Offline (Incognito Mode 🔒)"
+                        !userProfile.showOnlineStatus -> "Offline (Hidden in Privacy 🔒)"
+                        userProfile.isOnline -> "Active now • Online"
+                        userProfile.showLastSeen -> UserPresence.formatLastSeen(userProfile.lastSeenTimestamp)
+                        else -> "Offline"
+                    }
+
+                    PresenceStatusPill(
+                        isOnline = isEffectivelyOnline,
+                        statusText = selfPresenceStatus,
+                        customMoodOrActivity = userProfile.customStatusMessage,
+                        isSelf = true,
+                        onClick = { showStatusDialog = true },
+                        modifier = Modifier.testTag("profile_presence_status_pill")
+                    )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -1216,6 +1259,18 @@ fun ProfileScreen(
                 showEditProfileDialog = false
                 snackbarMessage = "Profile updated successfully! ✨"
             }
+        )
+    }
+
+    // Status & Presence Privacy Bottom Sheet
+    if (showStatusDialog) {
+        StatusAndPrivacyBottomSheet(
+            userProfile = userProfile,
+            onDismiss = { showStatusDialog = false },
+            onUpdateOnlineStatus = onUpdateOnlineStatus,
+            onUpdateShowLastSeen = onUpdateShowLastSeen,
+            onUpdatePrivacySetting = onUpdatePrivacySetting,
+            onUpdateCustomStatus = onUpdateCustomStatus
         )
     }
 }

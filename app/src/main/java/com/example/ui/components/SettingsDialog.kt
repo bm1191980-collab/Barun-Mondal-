@@ -44,6 +44,7 @@ fun SettingsDialog(
     onClearHistory: () -> Unit,
     onOpenAdminConsole: () -> Unit,
     onOpenSwitchProfile: () -> Unit = {},
+    onOpenStatusAndPrivacy: () -> Unit = {},
     isAdmin: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -398,6 +399,61 @@ fun SettingsDialog(
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
                         SettingsSectionHeader(title = "Data & Privacy")
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onDismiss()
+                                    onOpenStatusAndPrivacy()
+                                }
+                                .testTag("settings_presence_privacy_btn")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(SatisfyGreen.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Wifi,
+                                        contentDescription = null,
+                                        tint = SatisfyGreen,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Online Status & Last Seen Privacy",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Manage online indicator, last seen timestamp & privacy audience",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Filled.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Surface(
                             shape = RoundedCornerShape(12.dp),

@@ -160,15 +160,42 @@ class SatisfyRepository(
     }
 
     suspend fun recordUserWatchHistory(userId: String, postId: Long, lastPositionSeconds: Long = 0L, durationSeconds: Long = 0L) {
-        historyDao.recordWatch(
-            WatchHistoryEntity(
-                userId = userId,
-                postId = postId,
-                lastPositionSeconds = lastPositionSeconds,
-                durationSeconds = durationSeconds,
+        val existing = historyDao.getWatchProgressForPostAndUser(postId, userId)
+        if (existing != null) {
+            historyDao.updateWatchProgress(
+                id = existing.id,
+                lastPos = lastPositionSeconds,
+                duration = if (durationSeconds > 0) durationSeconds else existing.durationSeconds,
                 watchedAt = System.currentTimeMillis()
             )
-        )
+        } else {
+            historyDao.recordWatch(
+                WatchHistoryEntity(
+                    userId = userId,
+                    postId = postId,
+                    lastPositionSeconds = lastPositionSeconds,
+                    durationSeconds = durationSeconds,
+                    watchedAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    suspend fun saveWatchProgress(userId: String, postId: Long, lastPositionSeconds: Long, durationSeconds: Long) {
+        if (lastPositionSeconds <= 0L && durationSeconds <= 0L) return
+        recordUserWatchHistory(userId, postId, lastPositionSeconds, durationSeconds)
+    }
+
+    suspend fun getWatchProgressForPostAndUser(postId: Long, userId: String): WatchHistoryEntity? {
+        return historyDao.getWatchProgressForPostAndUser(postId, userId)
+    }
+
+    fun getAllWatchHistoryForUser(userId: String): Flow<List<WatchHistoryEntity>> {
+        return historyDao.getAllWatchHistoryForUser(userId)
+    }
+
+    suspend fun deleteWatchProgressForPostAndUser(postId: Long, userId: String) {
+        historyDao.deleteWatchProgressForPostAndUser(postId, userId)
     }
 
     suspend fun clearUserHistory(userId: String) {
@@ -209,7 +236,34 @@ class SatisfyRepository(
         if (pageId != null && pageId > 0) {
             creatorPageDao.addWatchTime(pageId, deltaSeconds)
         }
+        val post = postDao.getPostById(postId)
+        if (post != null) {
+            val dur = if (post.durationSeconds > 0) post.durationSeconds else 180L
+            val currentWatched = post.watchTimeSeconds + deltaSeconds
+            // Calculate empirical retention rate (capped between 0.2 and 1.0)
+            val newRetention = ((currentWatched.toFloat() / dur.toFloat()).coerceIn(0.2f, 1.0f) * 0.4f) + (post.avgRetentionRate * 0.6f)
+            postDao.updateRetentionAndWatchTime(postId, newRetention.coerceIn(0.1f, 1.0f), deltaSeconds)
+        }
     }
+
+    suspend fun incrementShares(postId: Long) {
+        postDao.incrementShares(postId)
+    }
+
+    suspend fun resolveAiFlag(postId: Long, reason: String = "AI Flag Dismissed & Reach Restored by Admin") {
+        postDao.resolveAiFlag(postId, reason)
+    }
+
+    suspend fun flagPostByAi(postId: Long, reason: String, riskScore: Float) {
+        postDao.flagPostByAi(postId, reason, riskScore)
+    }
+
+    suspend fun updateSpamLimited(postId: Long, isLimited: Boolean) {
+        postDao.updateSpamLimited(postId, isLimited)
+    }
+
+    val flaggedPosts: Flow<List<PostEntity>> = postDao.getFlaggedPosts()
+    val spamLimitedPosts: Flow<List<PostEntity>> = postDao.getSpamLimitedPosts()
 
     suspend fun incrementViewCount(postId: Long) {
         val post = postDao.getPostById(postId) ?: return
